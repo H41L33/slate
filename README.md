@@ -22,11 +22,11 @@ bash
 
 ### Install via pipx (recommended)
 
-pipx install slate
+`pipx install slate`
 
 ### Or, with pip:
 
-pip install slate
+`pip install slate`
 
 ## Usage
 
