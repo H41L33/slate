@@ -84,7 +84,7 @@ def parse_markdown_to_dicts(mdtext: str):
             continue
 
         # Paragraphs and callouts
-        elif token.type == "paragraph_open":
+        if token.type == "paragraph_open":
             content = tokens[i+1].content if tokens[i+1].type == "inline" else ""
             callout_match = None
             for callout in CALLOUTS:
@@ -100,7 +100,7 @@ def parse_markdown_to_dicts(mdtext: str):
             continue
 
         # Blockquotes
-        elif token.type == "blockquote_open":
+        if token.type == "blockquote_open":
             bq_content = ""
             j = i + 1
             while tokens[j].type != "blockquote_close":
@@ -112,7 +112,7 @@ def parse_markdown_to_dicts(mdtext: str):
             continue
 
         # Image in inline
-        elif token.type == "inline":
+        if token.type == "inline":
             for child in getattr(token, "children", []):
                 if child.type == "image":
                     result.append({"image": {
@@ -124,7 +124,7 @@ def parse_markdown_to_dicts(mdtext: str):
             continue
 
         # Code block (fenced)
-        elif token.type == "fence":
+        if token.type == "fence":
             result.append({"code": {
                 "text": token.content,
                 "lang": token.info or ""
@@ -133,21 +133,21 @@ def parse_markdown_to_dicts(mdtext: str):
             continue
 
         # Unordered list
-        elif token.type == "bullet_list_open":
+        if token.type == "bullet_list_open":
             lst, newi = parse_list_at(tokens, i)
             result.append(lst)
             i = newi
             continue
 
         # Ordered list
-        elif token.type == "ordered_list_open":
+        if token.type == "ordered_list_open":
             lst, newi = parse_list_at(tokens, i)
             result.append(lst)
             i = newi
             continue
 
         # Table parsing
-        elif token.type == "table_open":
+        if token.type == "table_open":
             headers = []
             rows = []
             # Find headers
@@ -173,7 +173,6 @@ def parse_markdown_to_dicts(mdtext: str):
             i = k + 1
             continue
 
-        else:
-            i += 1
+        i += 1
 
     return result

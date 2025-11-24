@@ -11,9 +11,9 @@ module level (`render_block`, `render_blocks`) so existing imports continue
 to work.
 """
 
-from typing import Any, Dict, List
 import html
 import re
+from typing import Any
 
 HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6")
 CALLOUTS = ("note", "warning", "danger", "success", "tip")
@@ -68,7 +68,7 @@ def render_inline_links(text: str) -> str:
 class HTMLRenderer:
     """Render blocks to HTML strings."""
 
-    def render_block(self, block: Dict[str, Any]) -> str:
+    def render_block(self, block: dict[str, Any]) -> str:
         for tag in HEADINGS:
             if tag in block:
                 classes = f"content-{tag}"
@@ -143,9 +143,9 @@ class HTMLRenderer:
 
         # No matching renderer for this block: return empty string
         return ""
-    def _render_list_html(self, list_type: str, items: List[object]) -> str:
+    def _render_list_html(self, list_type: str, items: list[object]) -> str:
         tag = "ul" if list_type == "ul" else "ol"
-        parts: List[str] = []
+        parts: list[str] = []
         for item in items:
             if isinstance(item, str):
                 parts.append(f"<li>{render_inline_links(item)}</li>")
@@ -169,17 +169,17 @@ class HTMLRenderer:
                 parts.append(f"<li>{render_inline_links(str(item))}</li>")
         return f"<{tag} class='content-list'>{''.join(parts)}</{tag}>"
 
-    def render_blocks(self, blocks: List[Dict[str, Any]]) -> str:
+    def render_blocks(self, blocks: list[dict[str, Any]]) -> str:
         return "\n".join(self.render_block(b) for b in blocks)
 
 
 class GemtextRenderer:
     """Render a simple Gemtext (Gemini) textual representation."""
 
-    def render_blocks(self, blocks: List[Dict[str, Any]], title: str | None = None, description: str | None = None) -> str:
+    def render_blocks(self, blocks: list[dict[str, Any]], title: str | None = None, description: str | None = None) -> str:
         # helper: render list items with indentation
         def _render_list(items, indent: int = 0, ordered: bool = False):
-            out: List[str] = []
+            out: list[str] = []
             for idx, item in enumerate(items, start=1):
                 prefix = " " * indent
                 if isinstance(item, str):
@@ -206,7 +206,7 @@ class GemtextRenderer:
         # link extraction helper
         link_pat = re.compile(r"\[(?P<label>[^\]]+)\]\((?P<href>[^\)]+)\)")
 
-        lines: List[str] = []
+        lines: list[str] = []
         if title:
             lines.append(f"# {title}")
             if description:
@@ -250,20 +250,20 @@ class GemtextRenderer:
 class GopherRenderer:
     """Render a Gophermap-like plain-text stub from blocks."""
 
-    def render_blocks(self, blocks: List[Dict[str, Any]], title: str | None = None, description: str | None = None, host: str = "localhost", port: int = 70) -> str:
+    def render_blocks(self, blocks: list[dict[str, Any]], title: str | None = None, description: str | None = None, host: str = "localhost", port: int = 70) -> str:
         """Produce a simple, more spec-compliant gophermap.
 
         Each line follows the format: <type><display>\t<selector>\t<host>\t<port>
         For informational lines we use type 'i' and an empty selector.
         """
-        lines: List[str] = []
+        lines: list[str] = []
         if title:
             lines.append(f"i{title}\t\t{host}\t{port}")
             if description:
                 lines.append(f"i{description}\t\t{host}\t{port}")
 
         def _render_list(items, indent: int = 0, ordered: bool = False):
-            out: List[str] = []
+            out: list[str] = []
             for idx, item in enumerate(items, start=1):
                 prefix = " " * indent
                 if isinstance(item, str):
@@ -306,11 +306,11 @@ class GopherRenderer:
 
 
 # Backwards-compatible thin wrappers
-def render_block(block: Dict[str, Any]) -> str:
+def render_block(block: dict[str, Any]) -> str:
     return HTMLRenderer().render_block(block)
 
 
-def render_blocks(blocks: List[Dict[str, Any]], fmt: str = "html", title: str | None = None, description: str | None = None) -> str:
+def render_blocks(blocks: list[dict[str, Any]], fmt: str = "html", title: str | None = None, description: str | None = None) -> str:
     fmt = (fmt or "").lower()
     if fmt == "html":
         return HTMLRenderer().render_blocks(blocks)

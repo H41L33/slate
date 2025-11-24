@@ -1,8 +1,9 @@
 import argparse
 import os
-from slate.parse import parse_markdown_to_dicts
-from slate.render import HTMLRenderer, GopherRenderer, GemtextRenderer
+
 from slate.loader import load_markdown, load_template
+from slate.parse import parse_markdown_to_dicts
+from slate.render import GemtextRenderer, GopherRenderer, HTMLRenderer
 
 
 def get_title(blocks, override=None):
