@@ -37,7 +37,7 @@ jobs:
 
       - name: Run mypy (type checks)
         run: |
-          poetry run mypy src tests || true
+          poetry run mypy src tests
 
       - name: Run tests
         run: |
