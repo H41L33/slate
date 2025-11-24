@@ -16,6 +16,62 @@ def parse_markdown_to_dicts(mdtext: str):
     tokens = md.parse(mdtext)
     result = []
     i = 0
+    
+    def parse_list_at(tokens, idx):
+        """Parse a bullet or ordered list starting at tokens[idx].
+
+        Returns (list_block_dict, new_index) where list_block_dict is
+        {'ul': [...]} or {'ol': [...]} and new_index is the token index
+        after the corresponding list_close.
+        """
+        start = tokens[idx]
+        is_ordered = start.type == "ordered_list_open"
+        list_key = "ol" if is_ordered else "ul"
+        items = []
+        j = idx + 1
+        # iterate until list_close
+        close_type = "ordered_list_close" if is_ordered else "bullet_list_close"
+        while j < len(tokens) and tokens[j].type != close_type:
+            tok = tokens[j]
+            if tok.type == "list_item_open":
+                # parse contents of list item
+                k = j + 1
+                item_text = None
+                nested_list = None
+                # accumulate paragraph lines into item_text if present
+                while k < len(tokens) and tokens[k].type != "list_item_close":
+                    t = tokens[k]
+                    if t.type == "paragraph_open":
+                        if k + 1 < len(tokens) and tokens[k+1].type == "inline":
+                            item_text = tokens[k+1].content
+                            k += 2
+                            continue
+                        k += 1
+                    elif t.type in ("bullet_list_open", "ordered_list_open"):
+                        nested, newk = parse_list_at(tokens, k)
+                        nested_list = nested
+                        k = newk
+                        continue
+                    else:
+                        k += 1
+                # build item representation: either string, or dict with 'p' and nested list
+                if nested_list and item_text:
+                    item = {"p": item_text}
+                    item.update(nested_list)
+                elif nested_list:
+                    # item that contains only a nested list: represent as nested list directly
+                    # but wrap into a dict so renderer can detect nested structure
+                    item = nested_list
+                else:
+                    item = item_text or ""
+
+                items.append(item)
+                j = k + 1
+            else:
+                j += 1
+
+        return ({list_key: items}, j + 1)
+
     while i < len(tokens):
         token = tokens[i]
 
@@ -78,26 +134,16 @@ def parse_markdown_to_dicts(mdtext: str):
 
         # Unordered list
         elif token.type == "bullet_list_open":
-            items = []
-            j = i + 1
-            while tokens[j].type != "bullet_list_close":
-                if tokens[j].type == "inline":
-                    items.append(tokens[j].content)
-                j += 1
-            result.append({"ul": items})
-            i = j + 1
+            lst, newi = parse_list_at(tokens, i)
+            result.append(lst)
+            i = newi
             continue
 
         # Ordered list
         elif token.type == "ordered_list_open":
-            items = []
-            j = i + 1
-            while tokens[j].type != "ordered_list_close":
-                if tokens[j].type == "inline":
-                    items.append(tokens[j].content)
-                j += 1
-            result.append({"ol": items})
-            i = j + 1
+            lst, newi = parse_list_at(tokens, i)
+            result.append(lst)
+            i = newi
             continue
 
         # Table parsing
