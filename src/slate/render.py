@@ -176,7 +176,14 @@ class HTMLRenderer:
 class GemtextRenderer:
     """Render a simple Gemtext (Gemini) textual representation."""
 
-    def render_blocks(self, blocks: list[dict[str, Any]], title: str | None = None, description: str | None = None) -> str:
+    def render_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+    ) -> str:
         # helper: render list items with indentation
         def _render_list(items, indent: int = 0, ordered: bool = False):
             out: list[str] = []
@@ -211,6 +218,11 @@ class GemtextRenderer:
             lines.append(f"# {title}")
             if description:
                 lines.append(description)
+            # optional date/time header
+            if date or time:
+                dt = " ".join(x for x in (date or "", time or "") if x)
+                if dt:
+                    lines.append(dt)
 
         for block in blocks:
             if any(h in block for h in HEADINGS):
@@ -250,7 +262,16 @@ class GemtextRenderer:
 class GopherRenderer:
     """Render a Gophermap-like plain-text stub from blocks."""
 
-    def render_blocks(self, blocks: list[dict[str, Any]], title: str | None = None, description: str | None = None, host: str = "localhost", port: int = 70) -> str:
+    def render_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        host: str = "localhost",
+        port: int = 70,
+    ) -> str:
         """Produce a simple, more spec-compliant gophermap.
 
         Each line follows the format: <type><display>\t<selector>\t<host>\t<port>
@@ -261,6 +282,10 @@ class GopherRenderer:
             lines.append(f"i{title}\t\t{host}\t{port}")
             if description:
                 lines.append(f"i{description}\t\t{host}\t{port}")
+            if date or time:
+                dt = " ".join(x for x in (date or "", time or "") if x)
+                if dt:
+                    lines.append(f"i{dt}\t\t{host}\t{port}")
 
         def _render_list(items, indent: int = 0, ordered: bool = False):
             out: list[str] = []

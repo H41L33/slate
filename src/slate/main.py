@@ -4,6 +4,7 @@ import os
 from slate.loader import load_markdown, load_template
 from slate.parse import parse_markdown_to_dicts
 from slate.render import GemtextRenderer, GopherRenderer, HTMLRenderer
+from datetime import datetime
 
 
 def get_title(blocks, override=None):
@@ -37,6 +38,11 @@ def main():
     blocks = parse_markdown_to_dicts(md_text)
     title = get_title(blocks, override=args.title)
 
+    # current date/time for templates: dd/mm/YYYY and 24-hour HH:MM
+    now = datetime.now()
+    date_str = now.strftime("%d/%m/%Y")
+    time_str = now.strftime("%H:%M")
+
     fmt = args.format.lower()
     if fmt == "html":
         if not args.template:
@@ -44,17 +50,17 @@ def main():
         renderer = HTMLRenderer()
         content_html = renderer.render_blocks(blocks)
         template = load_template(args.template)
-        html_result = template.render(content=content_html, title=title, description=(args.description or ""))
+        html_result = template.render(content=content_html, title=title, description=(args.description or ""), date=date_str, time=time_str)
         save_text(html_result, args.output)
         print(f"HTML output saved at: {args.output}")
     elif fmt == "gemini":
         renderer = GemtextRenderer()
-        text_result = renderer.render_blocks(blocks, title=title, description=(args.description or ""))
+        text_result = renderer.render_blocks(blocks, title=title, description=(args.description or ""), date=date_str, time=time_str)
         save_text(text_result, args.output)
         print(f"GEMINI output saved at: {args.output}")
     elif fmt == "gopher":
         renderer = GopherRenderer()
-        text_result = renderer.render_blocks(blocks, title=title, description=(args.description or ""))
+        text_result = renderer.render_blocks(blocks, title=title, description=(args.description or ""), date=date_str, time=time_str)
         save_text(text_result, args.output)
         print(f"GOPHER output saved at: {args.output}")
     else:
