@@ -1,6 +1,6 @@
 """Parse Markdown text into block dicts for rendering."""
 
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from markdown_it import MarkdownIt
 from mdit_py_plugins.front_matter import front_matter_plugin
@@ -8,7 +8,7 @@ from mdit_py_plugins.front_matter import front_matter_plugin
 CALLOUTS = ("NOTE", "WARNING", "DANGER", "SUCCESS", "TIP")
 
 
-def parse_markdown_to_dicts(mdtext: str) -> List[Dict[str, Any]]:
+def parse_markdown_to_dicts(mdtext: str) -> list[dict[str, Any]]:
     md = (
         MarkdownIt('commonmark', {'breaks':True,'html':True})
         .use(front_matter_plugin)
@@ -20,7 +20,7 @@ def parse_markdown_to_dicts(mdtext: str) -> List[Dict[str, Any]]:
     result = []
     i = 0
     
-    def parse_list_at(tokens: Any, idx: int) -> Tuple[Dict[str, Any], int]:
+    def parse_list_at(tokens: Any, idx: int) -> tuple[dict[str, Any], int]:
         """Parse a bullet or ordered list starting at tokens[idx].
 
         Returns (list_block_dict, new_index) where list_block_dict is
@@ -30,7 +30,7 @@ def parse_markdown_to_dicts(mdtext: str) -> List[Dict[str, Any]]:
         start = tokens[idx]
         is_ordered = start.type == "ordered_list_open"
         list_key = "ol" if is_ordered else "ul"
-        items: List[Any] = []
+        items: list[Any] = []
         j = idx + 1
         # iterate until list_close
         close_type = "ordered_list_close" if is_ordered else "bullet_list_close"
@@ -151,8 +151,8 @@ def parse_markdown_to_dicts(mdtext: str) -> List[Dict[str, Any]]:
 
         # Table parsing
         if token.type == "table_open":
-            headers: List[str] = []
-            rows: List[List[str]] = []
+            headers: list[str] = []
+            rows: list[list[str]] = []
             # Find headers
             j = i + 1
             while tokens[j].type != "thead_close":
