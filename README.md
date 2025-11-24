@@ -30,15 +30,24 @@ bash
 
 ## Usage
 
-### Generate a static HTML page
+### Generate a static page (new CLI flags)
 
-slate input.md page.html -t "Page Title" -o output_dir -n index.html
+`slate -i input.md -T template.html -o out_dir -t "Page Title" -d "Short description" -f html`
 
-- **input.md**: Input markdown.
-- **page.html**: HTML template.
-- **-t "Page Title"**: Title override, `slate` will use the first H1 as the title otherwise.
-- **-o output_dir**: Output directory.
-- **-n index.html**: Output filename.
+- `-i, --input`: Input Markdown file path.
+- `-T, --template`: Jinja2 HTML template file (required for `html` output).
+- `-o, --output`: Output directory to write the rendered file(s).
+- `-t, --title`: Optional title override; otherwise the first H1 is used.
+- `-d, --description`: Optional meta description for the template.
+- `-f, --format`: Output format: `html` (default), `gemini`, or `gopher`.
+
+Examples:
+
+- Render HTML: `slate -i mydoc.md -T page.html -o site -t "My Doc" -f html`
+- Render Gemini (gemtext): `slate -i mydoc.md -o out -f gemini`
+- Render Gopher: `slate -i mydoc.md -o out -f gopher`
+
+See `test.md` for supported Markdown features and examples.
 
 See test.md for all supported content types.
 
