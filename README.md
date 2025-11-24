@@ -49,8 +49,6 @@ Examples:
 
 See `test.md` for supported Markdown features and examples.
 
-See test.md for all supported content types.
-
 Callouts, images with captions, tables, and codeblocks are rendered with modern CSS and accessibility in mind.
 
 ## Limitations
@@ -64,16 +62,17 @@ Callouts, images with captions, tables, and codeblocks are rendered with modern 
 - All unsupported features are documented in the example page.
 
 ## Why Slate?
-`slate` was created since I found other SSGs (Static Site Generators) to be needlessly complicated for my usage. All I needed to do was take some Markdown, and create HTML with correct classes, divs, etc, based on a template and a CSS file.
 
-Because of that, `slate` is not as feature-full as other SSGs, but it is stupid-simple to get started with, and far easier to customise.
+`slate` was created because many other SSGs were needlessly complicated for simple use cases. The goal was a tiny tool that converts Markdown into accessible HTML using a template and minimal configuration.
 
-My personal website [link](https://about.haileywelsh.me) is created with `slate`. You can view the GitHub repo of that website to get an idea of how to extend `slate`.
+Because of that, `slate` is not as feature-full as other SSGs, but it is very simple to get started with and easier to customize.
+
+My personal website, [Hailey's site](https://about.haileywelsh.me), is built with `slate`. You can view that repository for examples of how to extend `slate`.
 
 `slate` is designed to be used with a monolithic CSS file, and maps Markdown elements to defined CSS classes.
 
-Feel free to fork, modify, etc.
+Feel free to fork and modify.
 
-# License
+## License
 
 [LGPL v3](https://www.gnu.org/licenses/lgpl-3.0.html#license-text)
