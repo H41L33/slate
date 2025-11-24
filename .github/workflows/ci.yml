@@ -35,6 +35,14 @@ jobs:
         run: |
           poetry run ruff check .
 
+      - name: Run black (format check)
+        run: |
+          poetry run black --check .
+
+      - name: Run mypy (type checks)
+        run: |
+          poetry run mypy src tests || true
+
       - name: Run tests
         run: |
           poetry run pytest -q
