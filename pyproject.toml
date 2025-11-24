@@ -28,3 +28,10 @@ dev = [
     "pytest (>=9.0.1,<10.0.0)",
     "ruff (>=0.14.6,<0.15.0)"
 ]
+
+[tool.ruff]
+# Recommended defaults for this repository. Tweak rules/ignore as needed.
+line-length = 88
+select = ["E", "F", "I", "B", "C", "R", "S"]
+extend-ignore = ["E203", "W503"]
+exclude = [".git", "__pycache__", "build", "dist", "venv"]
