@@ -17,7 +17,7 @@ def parse_markdown_to_dicts(mdtext: str) -> list[dict[str, Any]]:
     md.use(front_matter_plugin)
     md.enable("table")
     tokens = md.parse(mdtext)
-    result = []
+    result: list[dict[str, Any]] = []
     i = 0
     
     def parse_list_at(tokens: Any, idx: int) -> tuple[dict[str, Any], int]:
