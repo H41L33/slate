@@ -74,12 +74,16 @@ Check out my <a href="posts/latest.html" class="content-link">Latest Post</a>
 
 Your Jinja2 templates have access to these variables:
 
-- `{{ content }}`: The rendered HTML content.
-- `{{ title }}`: The page title.
-- `{{ description }}`: The page description.
-- `{{ date }}` / `{{ updated-date }}`: Build date (DD/MM/YYYY).
-- `{{ time }}` / `{{ updated-time }}`: Build time (HH:MM).
-- `{{ source-date }}`: Modification date of the source Markdown file.
+| Variable | Description |
+| :--- | :--- |
+| `{{ content }}` | The rendered content (HTML, Gemtext, or Gopher). |
+| `{{ title }}` | The page title. |
+| `{{ description }}` | The page description. |
+| `{{ creation_date }}` | The original creation date of the document (persisted in metadata). |
+| `{{ creation_time }}` | The original creation time of the document (persisted in metadata). |
+| `{{ modify_date }}` | The date the file was last regenerated/modified. |
+| `{{ modify_time }}` | The time the file was last regenerated/modified. |
+| `{{ source-date }}` | Modification date of the source Markdown file. |
 
 ## Why Slate?
 
