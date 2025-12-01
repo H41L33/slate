@@ -202,10 +202,11 @@ class VariableRegistry:
 # Register default variables
 VariableRegistry.register("date", lambda c: c.get("date", ""))
 VariableRegistry.register("time", lambda c: c.get("time", ""))
-VariableRegistry.register("updated-date", lambda c: c.get("date", ""))
-VariableRegistry.register("updated-time", lambda c: c.get("time", ""))
+VariableRegistry.register("updated-date", lambda c: c.get("updated_date", ""))
+VariableRegistry.register("updated-time", lambda c: c.get("updated_time", ""))
 VariableRegistry.register("source-date", lambda c: c.get("source_date", ""))
 VariableRegistry.register("datetime", lambda c: " ".join(x for x in (c.get("date", ""), c.get("time", "")) if x))
+VariableRegistry.register("version", lambda c: c.get("version", ""))
 
 
 class BaseRenderer:
@@ -216,7 +217,10 @@ class BaseRenderer:
         self.description: str | None = None
         self.date: str | None = None
         self.time: str | None = None
+        self.updated_date: str | None = None
+        self.updated_time: str | None = None
         self.source_date: str | None = None
+        self.version: str | None = None
 
     def _apply_dt(self, s: str | None) -> str:
         """Applies variable placeholders to a string using the VariableRegistry."""
@@ -228,9 +232,11 @@ class BaseRenderer:
             "description": self.description,
             "date": self.date,
             "time": self.time,
-            "source_date": self.source_date
+            "updated_date": self.updated_date,
+            "updated_time": self.updated_time,
+            "source_date": self.source_date,
+            "version": self.version
         }
-
         # We need to find all {{variable}} patterns and replace them
         # A simple regex for {{name}}
         return re.sub(r'\{\{([a-zA-Z0-9-_]+)\}\}', lambda m: VariableRegistry.get_value(m.group(1), context), s)
@@ -243,6 +249,9 @@ class BaseRenderer:
         date: str | None = None,
         time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
+        updated_date: str | None = None,
+        updated_time: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of blocks. Subclasses must implement specific logic."""
@@ -250,7 +259,10 @@ class BaseRenderer:
         self.description = description
         self.date = date
         self.time = time
+        self.updated_date = updated_date
+        self.updated_time = updated_time
         self.source_date = source_date
+        self.version = version
         return ""
 
 
@@ -472,10 +484,13 @@ class HTMLRenderer(BaseRenderer):
         date: str | None = None,
         time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
+        updated_date: str | None = None,
+        updated_time: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a complete HTML string."""
-        super().render_blocks(blocks, title, description, date, time, source_date)
+        super().render_blocks(blocks, title, description, date, time, updated_date=updated_date, updated_time=updated_time, source_date=source_date, version=version)
         return "\n".join(self.render_block(b) for b in blocks)
 
 
@@ -496,11 +511,16 @@ class GemtextRenderer(BaseRenderer):
         description: str | None = None,
         date: str | None = None,
         time: str | None = None,
+        updated_date: str | None = None,
+        updated_time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a Gemtext string."""
-        super().render_blocks(blocks, title, description, date, time, source_date)
+        super().render_blocks(blocks, title, description, date, time, updated_date=updated_date, updated_time=updated_time, source_date=source_date, version=version)
+
+
         
         # Inner helper function to recursively render list items with appropriate Gemtext indentation.
         def _render_list(list_items, indent: int = 0, is_ordered: bool = False):
@@ -635,12 +655,16 @@ class GopherRenderer(BaseRenderer):
         date: str | None = None,
         time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
+        updated_date: str | None = None,
+        updated_time: str | None = None,
         host: str = "localhost",
         port: int = 70,
         **kwargs
     ) -> str:
         """Produces a simple, Gophermap-compliant text representation from Markdown blocks."""
-        super().render_blocks(blocks, title, description, date, time, source_date)
+        super().render_blocks(blocks, title, description, date, time, updated_date=updated_date, updated_time=updated_time, source_date=source_date, version=version)
+
 
         gopher_lines: list[str] = []
         # Add title and description (if provided) as informational Gophermap lines.
