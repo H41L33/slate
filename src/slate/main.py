@@ -353,6 +353,24 @@ def handle_rebuild(args, main_parser):
         for page in category.pages:
             print(f"  Building {page.output_path.relative_to(root_path)}...")
             _rebuild_page(page, site, cat_name, version, main_parser)
+        
+        # Generate RSS feed if category has blog posts
+        if category.blog_posts:
+            from slate.rss import generate_rss_feed
+            
+            # Get site info from frontmatter or use defaults
+            site_url = site.index_page.frontmatter.get("url", "https://example.com")
+            site_title = site.index_page.title
+            site_desc = site.index_page.frontmatter.get("description", "")
+            
+            feed_xml = generate_rss_feed(category, site_url, site_title, site_desc)
+            
+            # Write feed.xml to category directory
+            feed_path = root_path / cat_name / "feed.xml"
+            feed_path.parent.mkdir(parents=True, exist_ok=True)
+            feed_path.write_text(feed_xml, encoding="utf-8")
+            
+            print(f"  Generated feed.xml ({len(category.blog_posts)} posts)")
     
     print(f"\n✓ Site rebuild complete! Built {1 + len([p for cat in site.categories.values() for p in [cat.root_page] + cat.pages])} pages.")
 
