@@ -213,6 +213,9 @@ VariableRegistry.register("nav_category", lambda c: c.get("nav_category", ""))
 VariableRegistry.register("category_name", lambda c: c.get("category_name", ""))
 VariableRegistry.register("breadcrumbs", lambda c: c.get("breadcrumbs", ""))
 
+# Content enhancement variables (v0.2.0)
+VariableRegistry.register("toc", lambda c: c.get("toc", ""))
+
 
 class BaseRenderer:
     """Base class for all renderers."""
