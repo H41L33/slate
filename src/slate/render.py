@@ -101,15 +101,15 @@ def _link_replace(match: re.Match) -> str:
 
 class CustomTokenRegistry:
     """Registry for custom Markdown tokens."""
-    _handlers = {}
+    _handlers: dict[str, Callable[[re.Match], str]] = {}
 
     @classmethod
-    def register(cls, token_name, handler):
+    def register(cls, token_name: str, handler: Callable[[re.Match], str]) -> None:
         """Register a handler for a specific token name."""
         cls._handlers[token_name.upper()] = handler
 
     @classmethod
-    def get_handler(cls, token_name):
+    def get_handler(cls, token_name: str) -> Callable[[re.Match], str] | None:
         """Get the handler for a specific token name."""
         return cls._handlers.get(token_name.upper())
 
