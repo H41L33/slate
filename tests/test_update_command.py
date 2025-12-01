@@ -82,7 +82,7 @@ def test_main_update_command_integration(tmp_path):
     template_file.write_text("<html>{{ content }}</html>")
     
     with (
-        patch("sys.argv", ["slate", "update", str(input_file), str(output_file), "-T", str(template_file)]),
+        patch("sys.argv", ["slate", "update", str(output_file), str(input_file), "-T", str(template_file)]),
         contextlib.suppress(SystemExit)
     ):
         # We need to mock save_text or ensure it writes to tmp_path
