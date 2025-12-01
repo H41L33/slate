@@ -31,6 +31,14 @@ except ImportError as exc:
 def extract_frontmatter(md_text: str) -> tuple[dict[str, Any], str]:
     """Extract YAML frontmatter from Markdown text.
     
+    Frontmatter is optional metadata at the top of a Markdown file, like this:
+    ---
+    title: My Post
+    description: A great post
+    ---
+    
+    # Your content here...
+    
     Args:
         md_text: The full Markdown text, potentially with frontmatter.
         
@@ -41,23 +49,39 @@ def extract_frontmatter(md_text: str) -> tuple[dict[str, Any], str]:
     Raises:
         ValueError: If frontmatter YAML is invalid.
     """
-    # Match frontmatter pattern: --- at start, YAML content, closing ---
+    # === REGEX PATTERN EXPLANATION ===
+    # This pattern matches frontmatter in this format:
+    # ---
+    # yaml content here
+    # ---
+    # markdown content here
+    #
+    # Pattern breakdown:
+    # ^---\s*\n     = Start of file, then "---", optional whitespace, then newline
+    # (.*?)         = Capture group 1: YAML content (non-greedy, stops at first match)
+    # \n---\s*\n    = Newline, "---", optional whitespace, newline (closing delimiter)
+    # (.*)$         = Capture group 2: Everything after (the Markdown content)
+    #
+    # re.DOTALL flag makes "." match newlines too (so we can capture multi-line content)
     frontmatter_pattern = r'^---\s*\n(.*?)\n---\s*\n(.*)$'
     match = re.match(frontmatter_pattern, md_text, re.DOTALL)
     
     if not match:
-        # No frontmatter found
+        # No frontmatter found - that's okay! It's optional.
         return {}, md_text
     
-    yaml_content = match.group(1)
-    markdown_content = match.group(2)
+    # Extract the two captured groups from our regex match
+    yaml_content = match.group(1)     # Everything between the --- markers
+    markdown_content = match.group(2)  # Everything after the closing ---
     
+    # Parse the YAML content into a Python dictionary
     try:
         metadata = yaml.safe_load(yaml_content)
-        # Handle empty frontmatter (just ---)
+        # Handle edge case: empty frontmatter (just "---\n---")
         if metadata is None:
             metadata = {}
     except yaml.YAMLError as e:
+        # If the YAML is malformed, give a helpful error message
         raise ValueError(f"Invalid frontmatter YAML: {e}") from e
     
     return metadata, markdown_content

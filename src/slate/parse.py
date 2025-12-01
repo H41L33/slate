@@ -389,49 +389,80 @@ def generate_toc(blocks: list[dict[str, Any]]) -> str:
 def slugify(text: str) -> str:
     """Convert text to URL-safe slug.
     
+    A "slug" is a URL-friendly version of text. For example:
+    "Hello World!" becomes "hello-world"
+    "C++ Programming" becomes "c-programming"
+    
+    This is useful for creating anchor links from heading text.
+    
     Args:
-        text: Text to slugify
+        text: Text to slugify (e.g., a heading like "My Great Post")
         
     Returns:
-        Lowercase, hyphenated slug
+        Lowercase, hyphenated slug (e.g., "my-great-post")
     """
-    # Lowercase
+    # Step 1: Convert everything to lowercase
+    # "Hello World!" → "hello world!"
     slug = text.lower()
     
-    # Remove non-word characters (except spaces and hyphens)
+    # Step 2: Remove special characters, keeping only letters, numbers, spaces, and hyphens
+    # REGEX: [^\w\s-] means "match anything that is NOT a word char, space, or hyphen"
+    # Then replace those matches with empty string (delete them)
+    # "hello world!" → "hello world"
     slug = re.sub(r'[^\w\s-]', '', slug)
     
-    # Replace spaces and multiple hyphens with single hyphen
+    # Step 3: Replace all spaces and multiple hyphens with a single hyphen
+    # REGEX: [-\s]+ means "one or more hyphens or spaces"
+    # "hello  world" → "hello-world"
+    # "hello---world" → "hello-world"
     slug = re.sub(r'[-\s]+', '-', slug)
     
-    # Strip leading/trailing hyphens
+    # Step 4: Remove any leading or trailing hyphens
+    # "-hello-world-" → "hello-world"
     return slug.strip('-')
 
 
 def parse_footnotes(md_text: str) -> tuple[str, dict[str, str]]:
     """Parse footnotes from Markdown text.
     
-    Footnotes use syntax:
+    Footnotes let you add references without cluttering the main text.
+    
+    Syntax:
         Here's text with footnote[^1].
         
-        [^1]: This is the footnote.
+        [^1]: This is the footnote content.
     
     Args:
         md_text: Markdown text with potential footnotes
         
     Returns:
         Tuple of (text_without_footnote_defs, footnotes_dict)
+        where footnotes_dict maps footnote IDs to their text
     """
-    # Pattern to match footnote definitions
+    # === REGEX PATTERN EXPLANATION ===
+    # This matches footnote definitions like: [^1]: Footnote text here
+    #
+    # Pattern breakdown:
+    # ^          = Start of line
+    # \[\^       = Literal "[^" (escaped because [ and ^ are special in regex)
+    # (\w+)      = Capture group 1: footnote ID (letters/numbers, like "1" or "note1")
+    # \]:        = Literal "]:" (closing bracket, colon)
+    # \s*        = Optional whitespace
+    # (.+)$      = Capture group 2: footnote text (everything to end of line)
     footnote_pattern = r'^\[\^(\w+)\]:\s*(.+)$'
     footnotes = {}
     lines = []
     
+    # Go through each line, separating footnote definitions from content
     for line in md_text.split('\n'):
         match = re.match(footnote_pattern, line)
         if match:
-            footnotes[match.group(1)] = match.group(2).strip()
+            # This line is a footnote definition - save it to our dict
+            footnote_id = match.group(1)     # e.g., "1" or "note1"
+            footnote_text = match.group(2).strip()  # e.g., "This is the footnote"
+            footnotes[footnote_id] = footnote_text
         else:
+            # This line is regular content - keep it
             lines.append(line)
     
     return '\n'.join(lines), footnotes
