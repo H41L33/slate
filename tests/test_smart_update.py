@@ -39,7 +39,7 @@ class TestSmartUpdate(unittest.TestCase):
         # Mock parser
         parser = MagicMock()
         
-        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, source_path=self.input_file)
+        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, "v0.0.0", source_path=self.input_file)
         
         self.assertTrue(os.path.exists(self.output_file))
         with open(self.output_file) as f:
@@ -59,7 +59,7 @@ class TestSmartUpdate(unittest.TestCase):
         args.output = self.output_file
         args.description = "Test"
         parser = MagicMock()
-        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, source_path=self.input_file)
+        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, "v0.0.0", source_path=self.input_file)
         
         # Now try to update without input file
         update_args = MagicMock()
@@ -81,7 +81,7 @@ class TestSmartUpdate(unittest.TestCase):
              self.assertEqual(Path(update_args.template).resolve(), Path(self.template_file).resolve())
 
     def test_updated_variable(self):
-        # Test {{updated-date}} and {{source-date}}
+        # Test {{modify_date}} and {{source-date}}
         renderer = HTMLRenderer()
         
         # Set modification time of input file
@@ -91,9 +91,9 @@ class TestSmartUpdate(unittest.TestCase):
         
         current_date = "01/01/2025"
         
-        blocks = [{"p": "Updated: {{updated-date}}, Source: {{source-date}}"}]
+        blocks = [{"p": "Updated: {{modify_date}}, Source: {{source-date}}"}]
         
-        output = renderer.render_blocks(blocks, date=current_date, source_date=source_date_str)
+        output = renderer.render_blocks(blocks, modify_date=current_date, source_date=source_date_str)
         
         self.assertIn(f"Updated: {current_date}", output)
         self.assertIn(f"Source: {source_date_str}", output)

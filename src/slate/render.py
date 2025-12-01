@@ -674,8 +674,8 @@ class GopherRenderer(BaseRenderer):
                 gopher_lines.append(f"i{self._apply_dt(description)}\t\t{host}\t{port}")
             
             # Optionally add date/time if available.
-            if date or time:
-                combined_datetime = " ".join(x for x in (date or "", time or "") if x)
+            if creation_date or creation_time:
+                combined_datetime = " ".join(x for x in (creation_date or "", creation_time or "") if x)
                 if combined_datetime:
                     gopher_lines.append(f"i{combined_datetime}\t\t{host}\t{port}")
 

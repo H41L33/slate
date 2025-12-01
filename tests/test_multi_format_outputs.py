@@ -147,14 +147,14 @@ def test_date_time_placeholders(tmp_path: Path):
 
     # Markdown content containing date and time placeholders.
     markdown_content_with_placeholders = """
-# Title with {{date}}
+# Title with {{creation_date}}
 
-Paragraph with {{time}}.
+Paragraph with {{creation_time}}.
 """
     write_file(markdown_input_path, markdown_content_with_placeholders)
     
     # HTML template that also uses date and time placeholders.
-    html_template_with_placeholders = "<html><head><title>{{ title }}</title></head><body>{{ content }}<p>{{ date }} - {{ time }}</p></body></html>"
+    html_template_with_placeholders = "<html><head><title>{{ title }}</title></head><body>{{ content }}<p>{{ creation_date }} - {{ creation_time }}</p></body></html>"
     write_file(html_template_path, html_template_with_placeholders)
 
     # Get current date and time formatted as expected by the renderers.
