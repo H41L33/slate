@@ -7,13 +7,20 @@ rendering, and saving the output.
 
 
 import argparse
+import importlib.metadata
 import json
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from slate.frontmatter import (
+    extract_frontmatter,
+    merge_with_cli_args,
+    validate_frontmatter,
+)
 from slate.loader import load_markdown, load_template
+from slate.navigation import build_navigation_context
 from slate.parse import parse_markdown_to_dicts
 from slate.render import GemtextRenderer, GopherRenderer, HTMLRenderer
 
@@ -52,7 +59,7 @@ def save_text(text: str, output_path: str):
     path.write_text(text, encoding="utf-8")
 
 
-def render_html(blocks, args, creation_date, creation_time, title, main_parser, source_path=None, modify_date=None, modify_time=None):
+def render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=None, modify_date=None, modify_time=None):
     """Renders and saves the HTML output.
 
     Args:
@@ -67,12 +74,8 @@ def render_html(blocks, args, creation_date, creation_time, title, main_parser, 
     if not args.template:
         main_parser.error("HTML output requires a Jinja2 template via -T/--template")
     
-    source_date = None
-    if source_path:
-        src = Path(source_path)
-        if src.exists():
-            mtime = src.stat().st_mtime
-            source_date = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y")
+    # source_date removed in v0.1.6
+    pass
 
     html_renderer = HTMLRenderer()
     content_html = html_renderer.render_blocks(
@@ -83,11 +86,11 @@ def render_html(blocks, args, creation_date, creation_time, title, main_parser, 
         creation_time=creation_time,
         modify_date=modify_date,
         modify_time=modify_time,
-        source_date=source_date
+        version=version
     )
     
     template = load_template(args.template)
-    html_result = template.render(content=content_html, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time)
+    html_result = template.render(content=content_html, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
     
     if source_path and args.template:
         abs_source = Path(source_path).resolve()
@@ -104,7 +107,7 @@ def render_html(blocks, args, creation_date, creation_time, title, main_parser, 
     print(f"HTML output saved at: {args.output}")
 
 
-def render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, modify_date=None, modify_time=None):
+def render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=None, modify_time=None):
     """Renders and saves the Gemtext output.
 
     Args:
@@ -116,12 +119,12 @@ def render_gemtext(blocks, args, creation_date, creation_time, title, main_parse
         main_parser: The main argparse parser object for error handling.
     """
     gemtext_renderer = GemtextRenderer()
-    text_result = gemtext_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time)
+    text_result = gemtext_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
     save_text(text_result, args.output)
     print(f"GEMINI output saved at: {args.output}")
 
 
-def render_gopher(blocks, args, creation_date, creation_time, title, main_parser, modify_date=None, modify_time=None):
+def render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=None, modify_time=None):
     """Renders and saves the Gopher output.
 
     Args:
@@ -133,7 +136,7 @@ def render_gopher(blocks, args, creation_date, creation_time, title, main_parser
         main_parser: The main argparse parser object for error handling.
     """
     gopher_renderer = GopherRenderer()
-    text_result = gopher_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time)
+    text_result = gopher_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
     save_text(text_result, args.output)
     print(f"GOPHER output saved at: {args.output}")
 
@@ -145,8 +148,35 @@ def handle_build(args, main_parser):
         args: The command-line arguments for the `build` subcommand.
         main_parser: The main argparse parser object for error handling.
     """
+    # Load Markdown and extract frontmatter
     md_text = load_markdown(args.input)
-    blocks = parse_markdown_to_dicts(md_text)
+    frontmatter, content = extract_frontmatter(md_text)
+    
+    # Validate frontmatter
+    errors = validate_frontmatter(frontmatter, args.input)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        main_parser.error("Frontmatter validation failed")
+    
+    # Merge frontmatter with CLI args (frontmatter takes precedence)
+    cli_args_dict = {
+        "title": args.title,
+        "description": getattr(args, "description", None),
+        "template": getattr(args, "template", None),
+    }
+    merged = merge_with_cli_args(frontmatter, cli_args_dict)
+    
+    # Update args with merged values
+    if merged.get("title"):
+        args.title = merged["title"]
+    if merged.get("description"):
+        args.description = merged["description"]
+    if merged.get("template"):
+        args.template = merged["template"]
+    
+    # Parse content (without frontmatter)
+    blocks = parse_markdown_to_dicts(content)
     title = get_title(blocks, override=args.title)
 
     now = datetime.now()
@@ -155,15 +185,18 @@ def handle_build(args, main_parser):
     modify_date = creation_date
     modify_time = creation_time
 
-    # version = f"v{importlib.metadata.version('slate-md')}" # Removed version
+    try:
+        version = f"v{importlib.metadata.version('slate-md')}"
+    except importlib.metadata.PackageNotFoundError:
+        version = "v0.0.0"
 
     fmt = args.format.lower()
     if fmt == "html":
-        render_html(blocks, args, creation_date, creation_time, title, main_parser, source_path=args.input, modify_date=modify_date, modify_time=modify_time)
+        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input, modify_date=modify_date, modify_time=modify_time)
     elif fmt == "gemini":
-        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, modify_date=modify_date, modify_time=modify_time)
+        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     elif fmt == "gopher":
-        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, modify_date=modify_date, modify_time=modify_time)
+        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     else:
         # This part should not be reachable due to `choices` in argparse
         main_parser.error(f"Unsupported format: {fmt}")
@@ -214,9 +247,33 @@ def handle_update(args, main_parser):
         main_parser.error(f"Input file '{args.input_file}' does not exist.")
 
     md_text = load_markdown(args.input_file)
-    blocks = parse_markdown_to_dicts(md_text)
+    frontmatter, content = extract_frontmatter(md_text)
     
-    title = get_title(blocks)
+    # Validate frontmatter
+    errors = validate_frontmatter(frontmatter, args.input_file)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        main_parser.error("Frontmatter validation failed")
+    
+    # Merge frontmatter with CLI args (frontmatter takes precedence)
+    cli_args_dict = {
+        "description": getattr(args, "description", None),
+        "template": args.template,  # May be from smart update or CLI
+    }
+    merged = merge_with_cli_args(frontmatter, cli_args_dict)
+    
+    # Update args with merged values  
+    if merged.get("description"):
+        args.description = merged["description"]
+    if merged.get("template"):
+        args.template = merged["template"]
+    
+    # Parse content (without frontmatter)
+    blocks = parse_markdown_to_dicts(content)
+    
+    # Title from frontmatter or extracted from blocks
+    title = frontmatter.get("title") or get_title(blocks)
 
     now = datetime.now()
     modify_date = now.strftime("%d/%m/%Y")
@@ -228,21 +285,196 @@ def handle_update(args, main_parser):
     if not creation_time:
         creation_time = modify_time
 
-    # version = f"v{importlib.metadata.version('slate-md')}" # Removed version
+    try:
+        version = f"v{importlib.metadata.version('slate-md')}"
+    except importlib.metadata.PackageNotFoundError:
+        version = "v0.0.0"
 
     # Determine format from output filename extension
     ext = output_path.suffix.lower()
 
     # Let's write the logic to dispatch based on extension
     if ext in ('.html', '.htm'):
-        render_html(blocks, args, creation_date, creation_time, title, main_parser, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
+        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
     elif ext == '.gmi':
-        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, modify_date=modify_date, modify_time=modify_time)
+        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     elif ext == '.txt': # Gopher often uses .txt or no extension, but let's assume .txt or .gopher
-        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, modify_date=modify_date, modify_time=modify_time)
+        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     else:
         print(f"Unknown output file extension '{ext}', defaulting to HTML.")
-        render_html(blocks, args, creation_date, creation_time, title, main_parser, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
+        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
+
+
+
+def handle_rebuild(args, main_parser):
+    """Handles the `rebuild` subcommand.
+    
+    Discovers site structure from current directory and rebuilds all pages
+    with auto-generated navigation.
+    """
+    from slate.site import discover_site, validate_site_structure
+    
+    root_path = Path.cwd()
+    
+    print(f"Discovering site structure in {root_path}...")
+    
+    try:
+        site = discover_site(root_path)
+    except (FileNotFoundError, ValueError) as e:
+        main_parser.error(str(e))
+    
+    # Validate structure
+    warnings = validate_site_structure(site)
+    if warnings:
+        for warning in warnings:
+            print(f"WARNING: {warning}", file=sys.stderr)
+    
+    print(f"Found {len(site.categories)} categories")
+    
+    # Get version
+    try:
+        version = f"v{importlib.metadata.version('slate-md')}"
+    except importlib.metadata.PackageNotFoundError:
+        version = "v0.0.0"
+    
+    # Rebuild index page
+    print("\nBuilding index.html...")
+    _rebuild_page(site.index_page, site, None, version, main_parser)
+    
+    # Rebuild each category
+    for cat_name, category in site.categories.items():
+        print(f"\nCategory: {cat_name}")
+        
+        # Rebuild category root page
+        print(f"  Building {category.root_page.output_path.name}...")
+        _rebuild_page(category.root_page, site, cat_name, version, main_parser)
+        
+        # Rebuild all pages in category
+        for page in category.pages:
+            print(f"  Building {page.output_path.relative_to(root_path)}...")
+            _rebuild_page(page, site, cat_name, version, main_parser)
+        
+        # Generate RSS feed if category has blog posts
+        if category.blog_posts:
+            from slate.rss import generate_rss_feed
+            
+            # Get site info from frontmatter or use defaults
+            site_url = site.index_page.frontmatter.get("url", "https://example.com")
+            site_title = site.index_page.title
+            site_desc = site.index_page.frontmatter.get("description", "")
+            
+            feed_xml = generate_rss_feed(category, site_url, site_title, site_desc)
+            
+            # Write feed.xml to category directory
+            feed_path = root_path / cat_name / "feed.xml"
+            feed_path.parent.mkdir(parents=True, exist_ok=True)
+            feed_path.write_text(feed_xml, encoding="utf-8")
+            
+            print(f"  Generated feed.xml ({len(category.blog_posts)} posts)")
+    
+    print(f"\n✓ Site rebuild complete! Built {1 + len([p for cat in site.categories.values() for p in [cat.root_page] + cat.pages])} pages.")
+
+
+def _rebuild_page(page, site, category_name, version, main_parser):
+    """Helper to rebuild a single page.
+    
+    Args:
+        page: Page object to rebuild
+        site: Site object for navigation context
+        category_name: Category name (or None for index)
+        version: Slate version string
+        main_parser: Parser for error reporting
+    """
+    # Parse frontmatter and content (already done during discovery, but stored in page)
+    md_text = page.source_path.read_text(encoding='utf-8')
+    from slate.frontmatter import extract_frontmatter
+    frontmatter, content = extract_frontmatter(md_text)
+    
+    # Parse blocks
+    blocks = parse_markdown_to_dicts(content)
+    
+    # Get title
+    title = page.title
+    
+    # Build navigation context
+    nav_context = build_navigation_context(site, category_name)
+    
+    # Get timestamps
+    now = datetime.now()
+    modify_date = now.strftime("%d/%m/%Y")
+    modify_time = now.strftime("%H:%M")
+    
+    # Use creation dates from frontmatter or current time
+    creation_date = str(frontmatter.get("date", modify_date)) if "date" in frontmatter else modify_date
+    creation_time = modify_time
+    
+    # Get template from frontmatter or error
+    template_path = frontmatter.get("template")
+    if not template_path:
+        print(f"  WARNING: No template specified for {page.source_path}, skipping HTML output")
+        return
+    
+    # Build args-like object for render functions
+    class RebuildArgs:
+        def __init__(self):
+            self.template = template_path
+            self.description = frontmatter.get("description", "")
+            self.output = str(page.output_path)
+    
+    args = RebuildArgs()
+    
+    # Render HTML (only format supported for rebuild currently)
+    html_renderer = HTMLRenderer()
+    
+    # Build context with navigation
+    context = {
+        "title": title,
+        "description": args.description,
+        "creation_date": creation_date,
+        "creation_time": creation_time,
+        "modify_date": modify_date,
+        "modify_time": modify_time,
+        "version": version,
+        **nav_context
+    }
+    
+    # Render content
+    content_html = html_renderer.render_blocks(
+        blocks,
+        title=title,
+        description=args.description,
+        creation_date=creation_date,
+        creation_time=creation_time,
+        modify_date=modify_date,
+        modify_time=modify_time,
+        version=version
+    )
+    
+    # Apply navigation variables to content
+    for var_name, var_value in nav_context.items():
+        content_html = content_html.replace(f"{{{{{var_name}}}}}", var_value)
+    
+    # Load and render template
+    try:
+        template = load_template(args.template)
+        final_html = template.render(content=content_html, **context)
+    except FileNotFoundError:
+        print(f"  ERROR: Template not found: {args.template}")
+        return
+    
+    # Add metadata comment at end
+    metadata = {
+        "source": str(page.source_path.resolve()),
+        "template": str(Path(args.template).resolve()),
+        "creation_date": creation_date,
+        "creation_time": creation_time
+    }
+    metadata_comment = f"<!-- slate: {json.dumps(metadata)} -->"
+    final_html = final_html.rstrip() + "\n" + metadata_comment + "\n"
+    
+    # Write output
+    page.output_path.parent.mkdir(parents=True, exist_ok=True)
+    save_text(final_html, page.output_path)
 
 
 def main():
@@ -271,6 +503,10 @@ def main():
     parser_update.add_argument("-T", "--template", dest="template", help="Jinja2 template path (required for HTML output)")
     parser_update.add_argument("-d", "--description", dest="description", help="Brief description of the page (metadata)")
     parser_update.set_defaults(func=handle_update) 
+    
+    # Rebuild command (v0.2.0)
+    parser_rebuild = subparsers.add_parser("rebuild", help="Rebuild entire site from index.md")
+    parser_rebuild.set_defaults(func=handle_rebuild)
     
     # Map 'output' to 'output_file' for render functions which expect args.output
     # We can do this by post-processing args or just ensuring render functions use a consistent attr.

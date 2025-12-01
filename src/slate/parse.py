@@ -11,6 +11,8 @@ a simplified, dictionary-based representation suitable for Slate's rendering
 pipeline.
 """
 
+
+import re
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -337,3 +339,172 @@ def parse_markdown_to_dicts(mdtext: str) -> list[dict[str, Any]]:
         i += 1
 
     return result
+
+
+def generate_toc(blocks: list[dict[str, Any]]) -> str:
+    """Generate table of contents HTML from heading blocks.
+    
+    Extracts all h1-h6 headings and creates a nested HTML list with slugified
+    anchor links.
+    
+    Args:
+        blocks: List of parsed Markdown blocks
+        
+    Returns:
+        HTML string with table of contents, or empty string if no headings
+    """
+    toc_items = []
+    
+    # Extract heading information
+    for block in blocks:
+        for level_key in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+            if level_key in block:
+                text = block[level_key]
+                level = int(level_key[1])
+                slug = slugify(text)
+                toc_items.append({
+                    "level": level,
+                    "text": text,
+                    "slug": slug
+                })
+                break  # Only one heading per block
+    
+    if not toc_items:
+        return ""
+    
+    # Build HTML
+    html_lines = ['<nav class="toc">', '  <ul>']
+    
+    for item in toc_items:
+        level_class = f' class="toc-h{item["level"]}"' if item["level"] > 1 else ""
+        html_lines.append(
+            f'    <li{level_class}><a href="#{item["slug"]}">{item["text"]}</a></li>'
+        )
+    
+    html_lines.extend(['  </ul>', '</nav>'])
+    
+    return '\n'.join(html_lines)
+
+
+def slugify(text: str) -> str:
+    """Convert text to URL-safe slug.
+    
+    A "slug" is a URL-friendly version of text. For example:
+    "Hello World!" becomes "hello-world"
+    "C++ Programming" becomes "c-programming"
+    
+    This is useful for creating anchor links from heading text.
+    
+    Args:
+        text: Text to slugify (e.g., a heading like "My Great Post")
+        
+    Returns:
+        Lowercase, hyphenated slug (e.g., "my-great-post")
+    """
+    # Step 1: Convert everything to lowercase
+    # "Hello World!" → "hello world!"
+    slug = text.lower()
+    
+    # Step 2: Remove special characters, keeping only letters, numbers, spaces, and hyphens
+    # REGEX: [^\w\s-] means "match anything that is NOT a word char, space, or hyphen"
+    # Then replace those matches with empty string (delete them)
+    # "hello world!" → "hello world"
+    slug = re.sub(r'[^\w\s-]', '', slug)
+    
+    # Step 3: Replace all spaces and multiple hyphens with a single hyphen
+    # REGEX: [-\s]+ means "one or more hyphens or spaces"
+    # "hello  world" → "hello-world"
+    # "hello---world" → "hello-world"
+    slug = re.sub(r'[-\s]+', '-', slug)
+    
+    # Step 4: Remove any leading or trailing hyphens
+    # "-hello-world-" → "hello-world"
+    return slug.strip('-')
+
+
+def parse_footnotes(md_text: str) -> tuple[str, dict[str, str]]:
+    """Parse footnotes from Markdown text.
+    
+    Footnotes let you add references without cluttering the main text.
+    
+    Syntax:
+        Here's text with footnote[^1].
+        
+        [^1]: This is the footnote content.
+    
+    Args:
+        md_text: Markdown text with potential footnotes
+        
+    Returns:
+        Tuple of (text_without_footnote_defs, footnotes_dict)
+        where footnotes_dict maps footnote IDs to their text
+    """
+    # === REGEX PATTERN EXPLANATION ===
+    # This matches footnote definitions like: [^1]: Footnote text here
+    #
+    # Pattern breakdown:
+    # ^          = Start of line
+    # \[\^       = Literal "[^" (escaped because [ and ^ are special in regex)
+    # (\w+)      = Capture group 1: footnote ID (letters/numbers, like "1" or "note1")
+    # \]:        = Literal "]:" (closing bracket, colon)
+    # \s*        = Optional whitespace
+    # (.+)$      = Capture group 2: footnote text (everything to end of line)
+    footnote_pattern = r'^\[\^(\w+)\]:\s*(.+)$'
+    footnotes = {}
+    lines = []
+    
+    # Go through each line, separating footnote definitions from content
+    for line in md_text.split('\n'):
+        match = re.match(footnote_pattern, line)
+        if match:
+            # This line is a footnote definition - save it to our dict
+            footnote_id = match.group(1)     # e.g., "1" or "note1"
+            footnote_text = match.group(2).strip()  # e.g., "This is the footnote"
+            footnotes[footnote_id] = footnote_text
+        else:
+            # This line is regular content - keep it
+            lines.append(line)
+    
+    return '\n'.join(lines), footnotes
+
+
+def render_footnotes(footnotes: dict[str, str]) -> str:
+    """Render footnotes as HTML.
+    
+    Args:
+        footnotes: Dictionary mapping footnote IDs to their text
+        
+    Returns:
+        HTML div with footnotes list, or empty string if no footnotes
+    """
+    if not footnotes:
+        return ""
+    
+    html_lines = ['<div class="footnotes">', '  <hr>', '  <ol>']
+    
+    for key, text in sorted(footnotes.items()):
+        html_lines.append(
+            f'    <li id="fn-{key}">{text} <a href="#fnref-{key}" class="footnote-backref">↩</a></li>'
+        )
+    
+    html_lines.extend(['  </ol>', '</div>'])
+    
+    return '\n'.join(html_lines)
+
+
+def replace_footnote_refs(html: str) -> str:
+    """Replace footnote reference markers with HTML links.
+    
+    Converts [^1] to <sup><a href="#fn-1" id="fnref-1">[1]</a></sup>
+    
+    Args:
+        html: HTML content with [^n] markers
+        
+    Returns:
+        HTML with footnote references as superscript links
+    """
+    def replace_fn_ref(match):
+        footnote_id = match.group(1)
+        return f'<sup><a href="#fn-{footnote_id}" id="fnref-{footnote_id}" class="footnote-ref">[{footnote_id}]</a></sup>'
+    
+    return re.sub(r'\[\^(\w+)\]', replace_fn_ref, html)
