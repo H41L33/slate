@@ -17,10 +17,10 @@ class TestFeatures(unittest.TestCase):
     def test_variable_registry_default(self):
         """Test default variables in VariableRegistry."""
         renderer = HTMLRenderer()
-        renderer.date = "01/01/2025"
-        renderer.time = "12:00"
+        renderer.creation_date = "01/01/2025"
+        renderer.creation_time = "12:00"
         
-        text = "Date: {{date}}, Time: {{time}}"
+        text = "Date: {{creation_date}}, Time: {{creation_time}}"
         expected = "Date: 01/01/2025, Time: 12:00"
         self.assertEqual(renderer._apply_dt(text), expected)
 

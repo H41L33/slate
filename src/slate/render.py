@@ -200,12 +200,13 @@ class VariableRegistry:
         return ""
 
 # Register default variables
-VariableRegistry.register("date", lambda c: c.get("date", ""))
-VariableRegistry.register("time", lambda c: c.get("time", ""))
-VariableRegistry.register("updated-date", lambda c: c.get("date", ""))
-VariableRegistry.register("updated-time", lambda c: c.get("time", ""))
+VariableRegistry.register("creation_date", lambda c: c.get("creation_date", ""))
+VariableRegistry.register("creation_time", lambda c: c.get("creation_time", ""))
+VariableRegistry.register("modify_date", lambda c: c.get("modify_date", ""))
+VariableRegistry.register("modify_time", lambda c: c.get("modify_time", ""))
 VariableRegistry.register("source-date", lambda c: c.get("source_date", ""))
-VariableRegistry.register("datetime", lambda c: " ".join(x for x in (c.get("date", ""), c.get("time", "")) if x))
+VariableRegistry.register("datetime", lambda c: " ".join(x for x in (c.get("creation_date", ""), c.get("creation_time", "")) if x))
+VariableRegistry.register("version", lambda c: c.get("version", ""))
 
 
 class BaseRenderer:
@@ -214,9 +215,12 @@ class BaseRenderer:
     def __init__(self):
         self.title: str | None = None
         self.description: str | None = None
-        self.date: str | None = None
-        self.time: str | None = None
+        self.creation_date: str | None = None
+        self.creation_time: str | None = None
+        self.modify_date: str | None = None
+        self.modify_time: str | None = None
         self.source_date: str | None = None
+        self.version: str | None = None
 
     def _apply_dt(self, s: str | None) -> str:
         """Applies variable placeholders to a string using the VariableRegistry."""
@@ -226,11 +230,13 @@ class BaseRenderer:
         context = {
             "title": self.title,
             "description": self.description,
-            "date": self.date,
-            "time": self.time,
-            "source_date": self.source_date
+            "creation_date": self.creation_date,
+            "creation_time": self.creation_time,
+            "modify_date": self.modify_date,
+            "modify_time": self.modify_time,
+            "source_date": self.source_date,
+            "version": self.version
         }
-
         # We need to find all {{variable}} patterns and replace them
         # A simple regex for {{name}}
         return re.sub(r'\{\{([a-zA-Z0-9-_]+)\}\}', lambda m: VariableRegistry.get_value(m.group(1), context), s)
@@ -240,17 +246,23 @@ class BaseRenderer:
         blocks: list[dict[str, Any]],
         title: str | None = None,
         description: str | None = None,
-        date: str | None = None,
-        time: str | None = None,
+        creation_date: str | None = None,
+        creation_time: str | None = None,
+        modify_date: str | None = None,
+        modify_time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of blocks. Subclasses must implement specific logic."""
         self.title = title
         self.description = description
-        self.date = date
-        self.time = time
+        self.creation_date = creation_date
+        self.creation_time = creation_time
+        self.modify_date = modify_date
+        self.modify_time = modify_time
         self.source_date = source_date
+        self.version = version
         return ""
 
 
@@ -469,13 +481,16 @@ class HTMLRenderer(BaseRenderer):
         blocks: list[dict[str, Any]],
         title: str | None = None,
         description: str | None = None,
-        date: str | None = None,
-        time: str | None = None,
+        creation_date: str | None = None,
+        creation_time: str | None = None,
+        modify_date: str | None = None,
+        modify_time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a complete HTML string."""
-        super().render_blocks(blocks, title, description, date, time, source_date)
+        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, source_date=source_date, version=version)
         return "\n".join(self.render_block(b) for b in blocks)
 
 
@@ -494,13 +509,18 @@ class GemtextRenderer(BaseRenderer):
         blocks: list[dict[str, Any]],
         title: str | None = None,
         description: str | None = None,
-        date: str | None = None,
-        time: str | None = None,
+        creation_date: str | None = None,
+        creation_time: str | None = None,
+        modify_date: str | None = None,
+        modify_time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a Gemtext string."""
-        super().render_blocks(blocks, title, description, date, time, source_date)
+        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, source_date=source_date, version=version)
+
+
         
         # Inner helper function to recursively render list items with appropriate Gemtext indentation.
         def _render_list(list_items, indent: int = 0, is_ordered: bool = False):
@@ -550,8 +570,8 @@ class GemtextRenderer(BaseRenderer):
                 rendered_lines.append(self._apply_dt(description)) # Description below title
             
             # Optionally add date/time if available.
-            if date or time:
-                combined_datetime = " ".join(x for x in (date or "", time or "") if x)
+            if creation_date or creation_time:
+                combined_datetime = " ".join(x for x in (creation_date or "", creation_time or "") if x)
                 if combined_datetime:
                     rendered_lines.append(combined_datetime)
 
@@ -632,15 +652,19 @@ class GopherRenderer(BaseRenderer):
         blocks: list[dict[str, Any]],
         title: str | None = None,
         description: str | None = None,
-        date: str | None = None,
-        time: str | None = None,
+        creation_date: str | None = None,
+        creation_time: str | None = None,
+        modify_date: str | None = None,
+        modify_time: str | None = None,
         source_date: str | None = None,
+        version: str | None = None,
         host: str = "localhost",
         port: int = 70,
         **kwargs
     ) -> str:
         """Produces a simple, Gophermap-compliant text representation from Markdown blocks."""
-        super().render_blocks(blocks, title, description, date, time, source_date)
+        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, source_date=source_date, version=version)
+
 
         gopher_lines: list[str] = []
         # Add title and description (if provided) as informational Gophermap lines.
@@ -650,8 +674,8 @@ class GopherRenderer(BaseRenderer):
                 gopher_lines.append(f"i{self._apply_dt(description)}\t\t{host}\t{port}")
             
             # Optionally add date/time if available.
-            if date or time:
-                combined_datetime = " ".join(x for x in (date or "", time or "") if x)
+            if creation_date or creation_time:
+                combined_datetime = " ".join(x for x in (creation_date or "", creation_time or "") if x)
                 if combined_datetime:
                     gopher_lines.append(f"i{combined_datetime}\t\t{host}\t{port}")
 

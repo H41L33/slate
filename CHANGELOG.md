@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2025-12-01
+
+### Added
+
+- Hotfix: Refactored template variables to avoid confusion and ensure persistence.
+- Added `{{creation_date}}` and `{{creation_time}}` which persist the original creation timestamp.
+- Added `{{modify_date}}` and `{{modify_time}}` which reflect the last regeneration timestamp.
+- Added `{{version}}` to display the current Slate version.
+- Removed `{{date}}`, `{{time}}`, `{{updated-date}}`, `{{updated-time}}`.
+
+
 ## [0.1.4] - 2025-12-01
 
 ### Added

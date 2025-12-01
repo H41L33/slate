@@ -12,6 +12,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+import importlib.metadata
 
 from slate.loader import load_markdown, load_template
 from slate.parse import parse_markdown_to_dicts
@@ -52,14 +53,14 @@ def save_text(text: str, output_path: str):
     path.write_text(text, encoding="utf-8")
 
 
-def render_html(blocks, args, date_str, time_str, title, main_parser, source_path=None):
+def render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=None, modify_date=None, modify_time=None):
     """Renders and saves the HTML output.
 
     Args:
         blocks: Parsed Markdown blocks.
         args: Command-line arguments.
-        date_str: Formatted date string.
-        time_str: Formatted time string.
+        creation_date: Creation date string.
+        creation_time: Creation time string.
         title: Document title.
         main_parser: The main argparse parser object for error handling.
         source_path: The absolute path to the source markdown file (for metadata).
@@ -79,20 +80,25 @@ def render_html(blocks, args, date_str, time_str, title, main_parser, source_pat
         blocks, 
         title=title, 
         description=(args.description or ""), 
-        date=date_str, 
-        time=time_str,
-        source_date=source_date
+        creation_date=creation_date, 
+        creation_time=creation_time,
+        modify_date=modify_date,
+        modify_time=modify_time,
+        source_date=source_date,
+        version=version
     )
     
     template = load_template(args.template)
-    html_result = template.render(content=content_html, title=title, description=(args.description or ""), date=date_str, time=time_str)
+    html_result = template.render(content=content_html, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
     
     if source_path and args.template:
         abs_source = Path(source_path).resolve()
         abs_template = Path(args.template).resolve()
         metadata = {
             "source": str(abs_source),
-            "template": str(abs_template)
+            "template": str(abs_template),
+            "creation_date": creation_date,
+            "creation_time": creation_time
         }
         html_result += f"\n<!-- slate: {json.dumps(metadata)} -->"
 
@@ -100,36 +106,36 @@ def render_html(blocks, args, date_str, time_str, title, main_parser, source_pat
     print(f"HTML output saved at: {args.output}")
 
 
-def render_gemtext(blocks, args, date_str, time_str, title, main_parser):
+def render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=None, modify_time=None):
     """Renders and saves the Gemtext output.
 
     Args:
         blocks: Parsed Markdown blocks.
         args: Command-line arguments.
-        date_str: Formatted date string.
-        time_str: Formatted time string.
+        creation_date: Creation date string.
+        creation_time: Creation time string.
         title: Document title.
         main_parser: The main argparse parser object for error handling.
     """
     gemtext_renderer = GemtextRenderer()
-    text_result = gemtext_renderer.render_blocks(blocks, title=title, description=(args.description or ""), date=date_str, time=time_str)
+    text_result = gemtext_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
     save_text(text_result, args.output)
     print(f"GEMINI output saved at: {args.output}")
 
 
-def render_gopher(blocks, args, date_str, time_str, title, main_parser):
+def render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=None, modify_time=None):
     """Renders and saves the Gopher output.
 
     Args:
         blocks: Parsed Markdown blocks.
         args: Command-line arguments.
-        date_str: Formatted date string.
-        time_str: Formatted time string.
+        creation_date: Creation date string.
+        creation_time: Creation time string.
         title: Document title.
         main_parser: The main argparse parser object for error handling.
     """
     gopher_renderer = GopherRenderer()
-    text_result = gopher_renderer.render_blocks(blocks, title=title, description=(args.description or ""), date=date_str, time=time_str)
+    text_result = gopher_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
     save_text(text_result, args.output)
     print(f"GOPHER output saved at: {args.output}")
 
@@ -146,16 +152,23 @@ def handle_build(args, main_parser):
     title = get_title(blocks, override=args.title)
 
     now = datetime.now()
-    date_str = now.strftime("%d/%m/%Y")
-    time_str = now.strftime("%H:%M")
+    creation_date = now.strftime("%d/%m/%Y")
+    creation_time = now.strftime("%H:%M")
+    modify_date = creation_date
+    modify_time = creation_time
+
+    try:
+        version = f"v{importlib.metadata.version('slate-md')}"
+    except importlib.metadata.PackageNotFoundError:
+        version = "v0.0.0"
 
     fmt = args.format.lower()
     if fmt == "html":
-        render_html(blocks, args, date_str, time_str, title, main_parser, source_path=args.input)
+        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input, modify_date=modify_date, modify_time=modify_time)
     elif fmt == "gemini":
-        render_gemtext(blocks, args, date_str, time_str, title, main_parser)
+        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     elif fmt == "gopher":
-        render_gopher(blocks, args, date_str, time_str, title, main_parser)
+        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     else:
         # This part should not be reachable due to `choices` in argparse
         main_parser.error(f"Unsupported format: {fmt}")
@@ -171,6 +184,9 @@ def handle_update(args, main_parser):
     args.output = args.output_file
 
     # Smart Update Logic: If input_file is missing, try to read metadata from output_file
+    creation_date = None
+    creation_time = None
+
     if not args.input_file:
         try:
             # Read the last 1024 bytes to find the metadata comment
@@ -185,6 +201,8 @@ def handle_update(args, main_parser):
                 if match:
                     metadata = json.loads(match.group(1))
                     args.input_file = metadata.get("source")
+                    creation_date = metadata.get("creation_date")
+                    creation_time = metadata.get("creation_time")
                     # Only override template if not provided in args
                     if not args.template:
                         args.template = metadata.get("template")
@@ -206,22 +224,33 @@ def handle_update(args, main_parser):
     title = get_title(blocks)
 
     now = datetime.now()
-    date_str = now.strftime("%d/%m/%Y")
-    time_str = now.strftime("%H:%M")
+    modify_date = now.strftime("%d/%m/%Y")
+    modify_time = now.strftime("%H:%M")
+    
+    # Use creation date from metadata if available, otherwise use now (fallback)
+    if not creation_date:
+        creation_date = modify_date
+    if not creation_time:
+        creation_time = modify_time
+
+    try:
+        version = f"v{importlib.metadata.version('slate-md')}"
+    except importlib.metadata.PackageNotFoundError:
+        version = "v0.0.0"
 
     # Determine format from output filename extension
     ext = output_path.suffix.lower()
 
     # Let's write the logic to dispatch based on extension
     if ext in ('.html', '.htm'):
-        render_html(blocks, args, date_str, time_str, title, main_parser, source_path=args.input_file)
+        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
     elif ext == '.gmi':
-        render_gemtext(blocks, args, date_str, time_str, title, main_parser)
+        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     elif ext == '.txt': # Gopher often uses .txt or no extension, but let's assume .txt or .gopher
-        render_gopher(blocks, args, date_str, time_str, title, main_parser)
+        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
     else:
         print(f"Unknown output file extension '{ext}', defaulting to HTML.")
-        render_html(blocks, args, date_str, time_str, title, main_parser, source_path=args.input_file)
+        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
 
 
 def main():
