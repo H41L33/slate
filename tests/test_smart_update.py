@@ -39,7 +39,7 @@ class TestSmartUpdate(unittest.TestCase):
         # Mock parser
         parser = MagicMock()
         
-        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, "v0.0.0", source_path=self.input_file)
+        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, source_path=self.input_file)
         
         self.assertTrue(os.path.exists(self.output_file))
         with open(self.output_file) as f:
@@ -59,7 +59,7 @@ class TestSmartUpdate(unittest.TestCase):
         args.output = self.output_file
         args.description = "Test"
         parser = MagicMock()
-        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, "v0.0.0", source_path=self.input_file)
+        render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, source_path=self.input_file)
         
         # Now try to update without input file
         update_args = MagicMock()
