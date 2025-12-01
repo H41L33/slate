@@ -8,9 +8,8 @@ the provided input and options.
 
 import sys
 from pathlib import Path
-import argparse # Ensure argparse is imported if it was moved inside main in previous steps.
 
-from slate import main as slate_main # Import slate.main globally once
+from slate import main as slate_main  # Import slate.main globally once
 
 
 def write_file(path: Path, content: str):

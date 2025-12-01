@@ -7,9 +7,8 @@ It also includes tests for dynamic date and time placeholder replacement.
 
 import sys
 from pathlib import Path
-import argparse # Needed for catching argparse.ArgumentParser errors
 
-from slate import main as slate_main # Import slate.main globally once
+from slate import main as slate_main  # Import slate.main globally once
 
 
 def write_file(path: Path, content: str):
@@ -137,7 +136,7 @@ def test_date_time_placeholders(tmp_path: Path):
     This test ensures that the CLI tool correctly substitutes dynamic date and
     time values into Markdown content for HTML, Gemini, and Gopher outputs.
     """
-    import datetime # Import datetime for generating current date/time strings.
+    import datetime  # Import datetime for generating current date/time strings.
     
     # Define paths for input Markdown, HTML template, and output files.
     markdown_input_path = tmp_path / "dt.md"

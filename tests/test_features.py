@@ -1,5 +1,11 @@
 import unittest
-from slate.render import HTMLRenderer, VariableRegistry, CustomTokenRegistry, render_inline_links
+
+from slate.render import (
+    HTMLRenderer,
+    VariableRegistry,
+    render_inline_links,
+)
+
 
 class TestFeatures(unittest.TestCase):
     def test_button_token(self):

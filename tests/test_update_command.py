@@ -1,9 +1,12 @@
 
-import os
-import pytest
-from unittest.mock import patch, MagicMock
-from slate.main import handle_update, main
 import argparse
+import contextlib
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from slate.main import handle_update, main
+
 
 @pytest.fixture
 def mock_args():
@@ -83,11 +86,10 @@ def test_main_update_command_integration(tmp_path):
         # The real main() calls handle_update which calls render_html which calls save_text
         # save_text writes to args.output.
         # So this should work and overwrite output_file.
-        try:
+        with contextlib.suppress(SystemExit):
             main()
-        except SystemExit:
-            pass # main might exit on success or error, but here it shouldn't if args are correct?
-                 # Actually main() doesn't sys.exit(0) explicitly, but sys.exit(1) on error.
+        # main might exit on success or error, but here it shouldn't if args are correct?
+        # Actually main() doesn't sys.exit(0) explicitly, but sys.exit(1) on error.
         
     assert output_file.read_text() != "Old Content"
     assert "Integration Test" in output_file.read_text()

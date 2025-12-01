@@ -1,6 +1,7 @@
 import unittest
-from slate.render import HTMLRenderer, render_inline_links, CustomTokenRegistry
-import re
+
+from slate.render import CustomTokenRegistry, render_inline_links
+
 
 class TestDynamicLinks(unittest.TestCase):
     def test_md_page_link_conversion(self):

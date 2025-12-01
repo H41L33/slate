@@ -5,12 +5,11 @@ and prepare templating environments.
 """
 
 from pathlib import Path
-from typing import Union
 
 from jinja2 import Environment, FileSystemLoader, Template
 
 
-def load_markdown(md_path: Union[str, Path]) -> str:
+def load_markdown(md_path: str | Path) -> str:
     """Loads content from a Markdown file.
 
     Args:
@@ -22,13 +21,13 @@ def load_markdown(md_path: Union[str, Path]) -> str:
     path = Path(md_path)
     try:
         return path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Input file '{path}' not found.")
-    except PermissionError:
-        raise PermissionError(f"Permission denied accessing '{path}'.")
+    except FileNotFoundError as err:
+        raise FileNotFoundError(f"Input file '{path}' not found.") from err
+    except PermissionError as err:
+        raise PermissionError(f"Permission denied accessing '{path}'.") from err
 
 
-def load_template(template_path: Union[str, Path]) -> Template:
+def load_template(template_path: str | Path) -> Template:
     """Loads a Jinja2 template from the specified path.
 
     Args:

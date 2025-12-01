@@ -11,19 +11,18 @@ a simplified, dictionary-based representation suitable for Slate's rendering
 pipeline.
 """
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 from markdown_it import MarkdownIt
-from mdit_py_plugins.front_matter import front_matter_plugin
 from markdown_it.token import Token
-
+from mdit_py_plugins.front_matter import front_matter_plugin
 
 # Define a list of recognized callout types.
 # Callouts are special blocks that highlight information, warnings, etc.
 CALLOUTS = ("NOTE", "WARNING", "DANGER", "SUCCESS", "TIP")
 
 
-def parse_markdown_to_dicts(mdtext: str) -> List[Dict[str, Any]]:
+def parse_markdown_to_dicts(mdtext: str) -> list[dict[str, Any]]:
     """Parses a Markdown string into a list of block dictionaries.
 
     This function takes raw Markdown text, processes it using the markdown-it-py
@@ -76,7 +75,7 @@ def parse_markdown_to_dicts(mdtext: str) -> List[Dict[str, Any]]:
     
         # and to simplify the main parsing loop by encapsulating list-specific logic.
 
-    def parse_list_at(tokens: List[Token], idx: int) -> Tuple[Dict[str, Any], int]:
+    def parse_list_at(tokens: list[Token], idx: int) -> tuple[dict[str, Any], int]:
         """Parses a bullet or ordered list block starting at the given token index.
 
         This is a recursive helper function that processes a list and its nested

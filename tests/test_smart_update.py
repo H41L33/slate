@@ -1,16 +1,15 @@
-import unittest
 import os
-import json
 import shutil
 import tempfile
-from datetime import datetime
 import time
-from unittest.mock import MagicMock, patch
-import argparse
+import unittest
+from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from slate.main import handle_update, render_html
 from slate.render import HTMLRenderer
+
 
 class TestSmartUpdate(unittest.TestCase):
     def setUp(self):
@@ -43,7 +42,7 @@ class TestSmartUpdate(unittest.TestCase):
         render_html(blocks, args, "01/01/2024", "12:00", "Hello", parser, source_path=self.input_file)
         
         self.assertTrue(os.path.exists(self.output_file))
-        with open(self.output_file, "r") as f:
+        with open(self.output_file) as f:
             content = f.read()
             self.assertIn("<!-- slate: {", content)
             # Use Path.resolve() to match what main.py writes

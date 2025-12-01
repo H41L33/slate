@@ -14,7 +14,8 @@ to work.
 
 import html
 import re
-from typing import Any, Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6") # HTML heading tags supported
 CALLOUTS = ("note", "warning", "danger", "success", "tip") # Types of callout blocks supported
@@ -183,15 +184,15 @@ def render_inline_links(text: str) -> str:
 
 class VariableRegistry:
     """Registry for template variables."""
-    _handlers: Dict[str, Callable[[Dict[str, Any]], str]] = {}
+    _handlers: dict[str, Callable[[dict[str, Any]], str]] = {}
 
     @classmethod
-    def register(cls, name: str, handler: Callable[[Dict[str, Any]], str]):
+    def register(cls, name: str, handler: Callable[[dict[str, Any]], str]):
         """Register a handler for a variable name."""
         cls._handlers[name] = handler
 
     @classmethod
-    def get_value(cls, name: str, context: Dict[str, Any]) -> str:
+    def get_value(cls, name: str, context: dict[str, Any]) -> str:
         """Get the value of a variable given the context."""
         handler = cls._handlers.get(name)
         if handler:
@@ -211,13 +212,13 @@ class BaseRenderer:
     """Base class for all renderers."""
     
     def __init__(self):
-        self.title: Optional[str] = None
-        self.description: Optional[str] = None
-        self.date: Optional[str] = None
-        self.time: Optional[str] = None
-        self.source_date: Optional[str] = None
+        self.title: str | None = None
+        self.description: str | None = None
+        self.date: str | None = None
+        self.time: str | None = None
+        self.source_date: str | None = None
 
-    def _apply_dt(self, s: Optional[str]) -> str:
+    def _apply_dt(self, s: str | None) -> str:
         """Applies variable placeholders to a string using the VariableRegistry."""
         if s is None:
             return ""
@@ -236,12 +237,12 @@ class BaseRenderer:
 
     def render_blocks(
         self,
-        blocks: List[Dict[str, Any]],
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        date: Optional[str] = None,
-        time: Optional[str] = None,
-        source_date: Optional[str] = None,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of blocks. Subclasses must implement specific logic."""
@@ -263,7 +264,7 @@ class HTMLRenderer(BaseRenderer):
     replacement of `{{date}}` and `{{time}}` placeholders within the content.
     """
 
-    def render_block(self, block: Dict[str, Any]) -> str:
+    def render_block(self, block: dict[str, Any]) -> str:
         """Renders a single Markdown block dictionary into its HTML string representation.
 
         This method inspects the type of the given block and dispatches it
@@ -465,12 +466,12 @@ class HTMLRenderer(BaseRenderer):
 
     def render_blocks(
         self,
-        blocks: List[Dict[str, Any]],
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        date: Optional[str] = None,
-        time: Optional[str] = None,
-        source_date: Optional[str] = None,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a complete HTML string."""
@@ -490,12 +491,12 @@ class GemtextRenderer(BaseRenderer):
 
     def render_blocks(
         self,
-        blocks: List[Dict[str, Any]],
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        date: Optional[str] = None,
-        time: Optional[str] = None,
-        source_date: Optional[str] = None,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a Gemtext string."""
@@ -503,7 +504,7 @@ class GemtextRenderer(BaseRenderer):
         
         # Inner helper function to recursively render list items with appropriate Gemtext indentation.
         def _render_list(list_items, indent: int = 0, is_ordered: bool = False):
-            output_lines: List[str] = []
+            output_lines: list[str] = []
             # Iterate through each item in the list.
             for item_index, item_data in enumerate(list_items, start=1):
                 # Calculate the prefix for indentation.
@@ -541,7 +542,7 @@ class GemtextRenderer(BaseRenderer):
         link_pattern = re.compile(r"\[(?P<label>[^\]]+)\]\((?P<href>[^\)]+)\)")
 
 
-        rendered_lines: List[str] = []
+        rendered_lines: list[str] = []
         # Add title and description (if provided) as Gemtext headers.
         if title:
             rendered_lines.append(f"# {self._apply_dt(title)}") # Main title
@@ -628,12 +629,12 @@ class GopherRenderer(BaseRenderer):
 
     def render_blocks(
         self,
-        blocks: List[Dict[str, Any]],
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        date: Optional[str] = None,
-        time: Optional[str] = None,
-        source_date: Optional[str] = None,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
         host: str = "localhost",
         port: int = 70,
         **kwargs
@@ -641,7 +642,7 @@ class GopherRenderer(BaseRenderer):
         """Produces a simple, Gophermap-compliant text representation from Markdown blocks."""
         super().render_blocks(blocks, title, description, date, time, source_date)
 
-        gopher_lines: List[str] = []
+        gopher_lines: list[str] = []
         # Add title and description (if provided) as informational Gophermap lines.
         if title:
             gopher_lines.append(f"i{self._apply_dt(title)}\t\t{host}\t{port}")
@@ -657,7 +658,7 @@ class GopherRenderer(BaseRenderer):
 
         # Inner helper function to recursively render list items for Gophermap.
         def _render_list(list_items, indent: int = 0, is_ordered: bool = False):
-            output_lines: List[str] = []
+            output_lines: list[str] = []
             # Iterate through each item in the list.
             for item_index, item_data in enumerate(list_items, start=1):
                 indent_prefix = " " * indent
