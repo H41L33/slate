@@ -204,9 +204,8 @@ VariableRegistry.register("creation_date", lambda c: c.get("creation_date", ""))
 VariableRegistry.register("creation_time", lambda c: c.get("creation_time", ""))
 VariableRegistry.register("modify_date", lambda c: c.get("modify_date", ""))
 VariableRegistry.register("modify_time", lambda c: c.get("modify_time", ""))
-VariableRegistry.register("source-date", lambda c: c.get("source_date", ""))
-VariableRegistry.register("datetime", lambda c: " ".join(x for x in (c.get("creation_date", ""), c.get("creation_time", "")) if x))
 VariableRegistry.register("version", lambda c: c.get("version", ""))
+VariableRegistry.register("datetime", lambda c: " ".join(x for x in (c.get("creation_date", ""), c.get("creation_time", "")) if x))
 
 
 class BaseRenderer:
@@ -219,7 +218,6 @@ class BaseRenderer:
         self.creation_time: str | None = None
         self.modify_date: str | None = None
         self.modify_time: str | None = None
-        self.source_date: str | None = None
         self.version: str | None = None
 
     def _apply_dt(self, s: str | None) -> str:
@@ -234,7 +232,7 @@ class BaseRenderer:
             "creation_time": self.creation_time,
             "modify_date": self.modify_date,
             "modify_time": self.modify_time,
-            "source_date": self.source_date
+            "version": self.version
         }
         # We need to find all {{variable}} patterns and replace them
         # A simple regex for {{name}}
@@ -249,7 +247,6 @@ class BaseRenderer:
         creation_time: str | None = None,
         modify_date: str | None = None,
         modify_time: str | None = None,
-        source_date: str | None = None,
         version: str | None = None,
         **kwargs
     ) -> str:
@@ -260,7 +257,7 @@ class BaseRenderer:
         self.creation_time = creation_time
         self.modify_date = modify_date
         self.modify_time = modify_time
-        self.source_date = source_date
+        self.version = version
         return ""
 
 
@@ -483,12 +480,11 @@ class HTMLRenderer(BaseRenderer):
         creation_time: str | None = None,
         modify_date: str | None = None,
         modify_time: str | None = None,
-        source_date: str | None = None,
         version: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a complete HTML string."""
-        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, source_date=source_date)
+        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
         return "\n".join(self.render_block(b) for b in blocks)
 
 
@@ -511,12 +507,11 @@ class GemtextRenderer(BaseRenderer):
         creation_time: str | None = None,
         modify_date: str | None = None,
         modify_time: str | None = None,
-        source_date: str | None = None,
         version: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a Gemtext string."""
-        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, source_date=source_date)
+        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
 
 
         
@@ -654,14 +649,13 @@ class GopherRenderer(BaseRenderer):
         creation_time: str | None = None,
         modify_date: str | None = None,
         modify_time: str | None = None,
-        source_date: str | None = None,
         version: str | None = None,
         host: str = "localhost",
         port: int = 70,
         **kwargs
     ) -> str:
         """Produces a simple, Gophermap-compliant text representation from Markdown blocks."""
-        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, source_date=source_date)
+        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
 
 
         gopher_lines: list[str] = []

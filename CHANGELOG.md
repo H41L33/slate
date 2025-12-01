@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.1.6
+
+- Added `{{version}}` variable.
+- Removed `{{source-date}}` variable.
+
 ## [0.1.5] - 2025-12-01
 
 ### Added

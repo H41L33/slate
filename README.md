@@ -83,7 +83,7 @@ Your Jinja2 templates have access to these variables:
 | `{{ creation_time }}` | The original creation time of the document (persisted in metadata). |
 | `{{ modify_date }}` | The date the file was last regenerated/modified. |
 | `{{ modify_time }}` | The time the file was last regenerated/modified. |
-| `{{ source-date }}` | Modification date of the source Markdown file. |
+| `{{ version }}` | The current version of Slate. |
 
 ## Why Slate?
 
