@@ -81,13 +81,15 @@ def test_main_update_command_integration(tmp_path):
     template_file = template_dir / "basic.html"
     template_file.write_text("<html>{{ content }}</html>")
     
-    with patch("sys.argv", ["slate", "update", str(input_file), str(output_file), "-T", str(template_file)]):
+    with (
+        patch("sys.argv", ["slate", "update", str(input_file), str(output_file), "-T", str(template_file)]),
+        contextlib.suppress(SystemExit)
+    ):
         # We need to mock save_text or ensure it writes to tmp_path
         # The real main() calls handle_update which calls render_html which calls save_text
         # save_text writes to args.output.
         # So this should work and overwrite output_file.
-        with contextlib.suppress(SystemExit):
-            main()
+        main()
         # main might exit on success or error, but here it shouldn't if args are correct?
         # Actually main() doesn't sys.exit(0) explicitly, but sys.exit(1) on error.
         
