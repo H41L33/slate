@@ -79,21 +79,33 @@ def validate_frontmatter(metadata: dict[str, Any], file_path: str) -> list[str]:
     if metadata.get("type") == "blog":
         if "date" not in metadata:
             errors.append(f"{file_path}: Blog posts require 'date' field")
-        elif not isinstance(metadata["date"], (str, datetime)):
-            errors.append(f"{file_path}: 'date' must be a date string (YYYY-MM-DD)")
+        else:
+            # YAML parses dates as datetime.date objects, which is fine
+            # Also accept strings in ISO format
+            date_value = metadata["date"]
+            if isinstance(date_value, str):
+                try:
+                    datetime.fromisoformat(date_value)
+                except ValueError:
+                    errors.append(
+                        f"{file_path}: 'date' must be in ISO format (YYYY-MM-DD), "
+                        f"got: {date_value}"
+                    )
+            elif not isinstance(date_value, datetime):
+                # datetime.date is a subclass of datetime for isinstance checks
+                # Actually datetime.date is NOT a subclass, need to import date
+                from datetime import date as date_type
+                if not isinstance(date_value, (datetime, date_type)):
+                    errors.append(
+                        f"{file_path}: 'date' must be a date string or datetime object, "
+                        f"got: {type(date_value).__name__}"
+                    )
         
         if "title" not in metadata:
             errors.append(f"{file_path}: Blog posts require 'title' field")
     
-    # Validate date format if present
-    if "date" in metadata and isinstance(metadata["date"], str):
-        try:
-            datetime.fromisoformat(metadata["date"])
-        except ValueError:
-            errors.append(
-                f"{file_path}: 'date' must be in ISO format (YYYY-MM-DD), "
-                f"got: {metadata['date']}"
-            )
+    # Validate date format if present (only for string dates not already checked above)
+    # YAML auto-parses dates to datetime.date objects, which are already validated above
     
     # Validate type field if present
     if "type" in metadata:
