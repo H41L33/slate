@@ -14,6 +14,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from slate.frontmatter import extract_frontmatter, merge_with_cli_args, validate_frontmatter
 from slate.loader import load_markdown, load_template
 from slate.parse import parse_markdown_to_dicts
 from slate.render import GemtextRenderer, GopherRenderer, HTMLRenderer
@@ -142,8 +143,35 @@ def handle_build(args, main_parser):
         args: The command-line arguments for the `build` subcommand.
         main_parser: The main argparse parser object for error handling.
     """
+    # Load Markdown and extract frontmatter
     md_text = load_markdown(args.input)
-    blocks = parse_markdown_to_dicts(md_text)
+    frontmatter, content = extract_frontmatter(md_text)
+    
+    # Validate frontmatter
+    errors = validate_frontmatter(frontmatter, args.input)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        main_parser.error("Frontmatter validation failed")
+    
+    # Merge frontmatter with CLI args (frontmatter takes precedence)
+    cli_args_dict = {
+        "title": args.title,
+        "description": getattr(args, "description", None),
+        "template": getattr(args, "template", None),
+    }
+    merged = merge_with_cli_args(frontmatter, cli_args_dict)
+    
+    # Update args with merged values
+    if merged.get("title"):
+        args.title = merged["title"]
+    if merged.get("description"):
+        args.description = merged["description"]
+    if merged.get("template"):
+        args.template = merged["template"]
+    
+    # Parse content (without frontmatter)
+    blocks = parse_markdown_to_dicts(content)
     title = get_title(blocks, override=args.title)
 
     now = datetime.now()
@@ -214,9 +242,33 @@ def handle_update(args, main_parser):
         main_parser.error(f"Input file '{args.input_file}' does not exist.")
 
     md_text = load_markdown(args.input_file)
-    blocks = parse_markdown_to_dicts(md_text)
+    frontmatter, content = extract_frontmatter(md_text)
     
-    title = get_title(blocks)
+    # Validate frontmatter
+    errors = validate_frontmatter(frontmatter, args.input_file)
+    if errors:
+        for error in errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        main_parser.error("Frontmatter validation failed")
+    
+    # Merge frontmatter with CLI args (frontmatter takes precedence)
+    cli_args_dict = {
+        "description": getattr(args, "description", None),
+        "template": args.template,  # May be from smart update or CLI
+    }
+    merged = merge_with_cli_args(frontmatter, cli_args_dict)
+    
+    # Update args with merged values  
+    if merged.get("description"):
+        args.description = merged["description"]
+    if merged.get("template"):
+        args.template = merged["template"]
+    
+    # Parse content (without frontmatter)
+    blocks = parse_markdown_to_dicts(content)
+    
+    # Title from frontmatter or extracted from blocks
+    title = frontmatter.get("title") or get_title(blocks)
 
     now = datetime.now()
     modify_date = now.strftime("%d/%m/%Y")
