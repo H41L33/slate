@@ -11,16 +11,28 @@ module level (`render_block`, `render_blocks`) so existing imports continue
 to work.
 """
 
+
 import html
 import re
+from collections.abc import Callable
 from typing import Any
 
-HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6")
-CALLOUTS = ("note", "warning", "danger", "success", "tip")
+HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6") # HTML heading tags supported
+CALLOUTS = ("note", "warning", "danger", "success", "tip") # Types of callout blocks supported
+
+
+HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6") # HTML heading tags supported
+CALLOUTS = ("note", "warning", "danger", "success", "tip") # Types of callout blocks supported
+
 
 # Precompile commonly-used regexes to avoid repeated compilation at runtime.
+# Regex for matching Markdown image syntax: ![alt text](src "caption")
 IMAGE_RE = re.compile(r'!\[(?P<alt>[^\]]*)\]\((?P<src>[^\s\)]+)(?:\s+"(?P<caption>[^\"]*)")?\)')
+# Regex for matching Markdown link syntax: [label](href)
 LINK_RE = re.compile(r'\[(?P<label>[^\]]+)\]\((?P<href>[^\)]+)\)')
+# Regex for matching generic custom token syntax: [!TOKEN] [label](href)
+CUSTOM_TOKEN_RE = re.compile(r'\[!(?P<token>[A-Z0-9-_]+)\]\s*\[(?P<label>[^\]]+)\]\((?P<href>[^\)]+)\)')
+# Regex for matching inline code: `code`
 INLINE_CODE_RE = re.compile(r'`([^`]+)`')
 
 
@@ -31,112 +43,358 @@ def _escape(value: Any) -> str:
     formats (gemtext/gopher) intentionally emit raw text and therefore do not
     use HTML escaping.
     """
+
     return html.escape("" if value is None else str(value), quote=True)
 
 
 def _img_replace(match: re.Match) -> str:
-    alt = _escape(match.group("alt"))
-    src = _escape(match.group("src"))
-    caption = match.group("caption") or ""
-    caption = _escape(caption.strip(' "'))
-    fig = f'<figure class="content-figure"><img src="{src}" alt="{alt}" class="content-image"/>'
-    if caption:
-        fig += f'<figcaption class="caption">{caption}</figcaption>'
-    fig += "</figure>"
-    return fig
+    """Replaces a Markdown image pattern with its corresponding HTML <figure> tag.
+
+    This helper function is used by `render_inline_links` to convert image
+    Markdown into HTML, handling alt text, source, and optional captions.
+
+    Args:
+        match: A regex match object containing groups for 'alt', 'src', and 'caption'.
+
+    Returns:
+        An HTML string representing the image within a <figure> and <figcaption> if a caption is present.
+    """
+    # Extract alt text, source, and caption from the regex match.
+    # Escape HTML sensitive characters to prevent cross-site scripting (XSS).
+    alt_text = _escape(match.group("alt"))
+    image_source = _escape(match.group("src"))
+    caption_raw = match.group("caption") or ""
+    image_caption = _escape(caption_raw.strip(' "')) # Strip quotes and extra spaces from caption.
+
+    # Construct the base HTML for the image figure.
+    figure_html = f'<figure class="content-figure"><img src="{image_source}" alt="{alt_text}" class="content-image"/>'
+    # If a caption exists, add a <figcaption> tag.
+    if image_caption:
+        figure_html += f'<figcaption class="caption">{image_caption}</figcaption>'
+    figure_html += "</figure>"
+    return figure_html
 
 
 def _link_replace(match: re.Match) -> str:
+    """Replaces a Markdown link pattern with its corresponding HTML <a> tag.
+
+    This helper function is used by `render_inline_links` to convert link
+    Markdown into HTML.
+
+    Args:
+        match: A regex match object containing groups for 'label' and 'href'.
+
+    Returns:
+        An HTML string representing the hyperlink.
+    """
+    # Extract label and href from the regex match.
+    # Escape HTML sensitive characters.
+    link_label = _escape(match.group("label"))
+    link_href = _escape(match.group("href"))
+    # Construct the HTML anchor tag.
+    return f'<a href="{link_href}" class="content-link">{link_label}</a>'
+
+
+    # Construct the HTML anchor tag.
+    return f'<a href="{link_href}" class="content-link">{link_label}</a>'
+
+
+class CustomTokenRegistry:
+    """Registry for custom Markdown tokens."""
+    _handlers: dict[str, Callable[[re.Match], str]] = {}
+
+    @classmethod
+    def register(cls, token_name: str, handler: Callable[[re.Match], str]) -> None:
+        """Register a handler for a specific token name."""
+        cls._handlers[token_name.upper()] = handler
+
+    @classmethod
+    def get_handler(cls, token_name: str) -> Callable[[re.Match], str] | None:
+        """Get the handler for a specific token name."""
+        return cls._handlers.get(token_name.upper())
+
+
+def _md_page_link_handler(match: re.Match) -> str:
+    """Handler for MD-PAGE token.
+    
+    Replaces a special MD-PAGE link pattern with its corresponding HTML <a> tag, converting extension.
+    """
+    link_label = _escape(match.group("label"))
+    link_href = match.group("href")
+    
+    # Convert .md extension to .html
+    if link_href.lower().endswith('.md'):
+        link_href = link_href[:-3] + '.html'
+    
+    link_href = _escape(link_href)
+    return f'<a href="{link_href}" class="content-link">{link_label}</a>'
+
+# Register the default MD-PAGE handler
+CustomTokenRegistry.register("MD-PAGE", _md_page_link_handler)
+
+
+def _button_handler(match: re.Match) -> str:
+    """Handler for BUTTON token.
+    
+    Replaces [!BUTTON] [Label](Link) with <button class="content-button" onclick="window.location.href='Link'">Label</button>
+    """
     label = _escape(match.group("label"))
     href = _escape(match.group("href"))
-    return f'<a href="{href}" class="content-link">{label}</a>'
+    return f'<button class="content-button" onclick="window.location.href=\'{href}\'">{label}</button>'
+
+CustomTokenRegistry.register("BUTTON", _button_handler)
+
+
+def _custom_token_replace(match: re.Match) -> str:
+    """Dispatcher for custom tokens."""
+    token = match.group("token")
+    handler = CustomTokenRegistry.get_handler(token)
+    if handler:
+        return handler(match)
+    # If no handler found, return the original text (or handle otherwise)
+    # For now, let's return the match as is, or maybe we should strip the token?
+    # Returning as is seems safest if unknown.
+    return match.group(0)
 
 
 def render_inline_links(text: str) -> str:
-    """Replace inline images, links and inline code with HTML fragments.
+    """Replaces inline Markdown images, links, and code with their HTML equivalents.
 
-    This is used by the HTML renderer; other renderers interpret raw text and
-    therefore do not call this helper.
+    This function processes a given text string, applying regex substitutions
+    to convert Markdown syntax for images, links, and inline code into
+    corresponding HTML tags. This is specifically used by the HTML renderer.
+
+    Args:
+        text: The input text string which may contain inline Markdown.
+
+    Returns:
+        The text string with Markdown inline elements replaced by HTML.
     """
-    # Replace images first, then links, then inline code
+    # First, replace all image Markdown with HTML <figure> tags.
     text = IMAGE_RE.sub(_img_replace, text)
+    # Replace custom tokens using the registry
+    text = CUSTOM_TOKEN_RE.sub(_custom_token_replace, text)
+    # Next, replace all link Markdown with HTML <a> tags.
     text = LINK_RE.sub(_link_replace, text)
+    # Finally, replace all inline code (backticks) with HTML <code> tags.
+    # The content inside backticks is HTML-escaped to prevent rendering issues.
     text = INLINE_CODE_RE.sub(lambda m: f'<code>{html.escape(m.group(1))}</code>', text)
     return text
 
 
-class HTMLRenderer:
-    """Render blocks to HTML strings."""
+class VariableRegistry:
+    """Registry for template variables."""
+    _handlers: dict[str, Callable[[dict[str, Any]], str]] = {}
+
+    @classmethod
+    def register(cls, name: str, handler: Callable[[dict[str, Any]], str]):
+        """Register a handler for a variable name."""
+        cls._handlers[name] = handler
+
+    @classmethod
+    def get_value(cls, name: str, context: dict[str, Any]) -> str:
+        """Get the value of a variable given the context."""
+        handler = cls._handlers.get(name)
+        if handler:
+            return handler(context)
+        return ""
+
+# Register default variables
+VariableRegistry.register("date", lambda c: c.get("date", ""))
+VariableRegistry.register("time", lambda c: c.get("time", ""))
+VariableRegistry.register("updated-date", lambda c: c.get("date", ""))
+VariableRegistry.register("updated-time", lambda c: c.get("time", ""))
+VariableRegistry.register("source-date", lambda c: c.get("source_date", ""))
+VariableRegistry.register("datetime", lambda c: " ".join(x for x in (c.get("date", ""), c.get("time", "")) if x))
+
+
+class BaseRenderer:
+    """Base class for all renderers."""
+    
+    def __init__(self):
+        self.title: str | None = None
+        self.description: str | None = None
+        self.date: str | None = None
+        self.time: str | None = None
+        self.source_date: str | None = None
+
+    def _apply_dt(self, s: str | None) -> str:
+        """Applies variable placeholders to a string using the VariableRegistry."""
+        if s is None:
+            return ""
+        
+        context = {
+            "title": self.title,
+            "description": self.description,
+            "date": self.date,
+            "time": self.time,
+            "source_date": self.source_date
+        }
+
+        # We need to find all {{variable}} patterns and replace them
+        # A simple regex for {{name}}
+        return re.sub(r'\{\{([a-zA-Z0-9-_]+)\}\}', lambda m: VariableRegistry.get_value(m.group(1), context), s)
+
+    def render_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
+        **kwargs
+    ) -> str:
+        """Renders a list of blocks. Subclasses must implement specific logic."""
+        self.title = title
+        self.description = description
+        self.date = date
+        self.time = time
+        self.source_date = source_date
+        return ""
+
+
+class HTMLRenderer(BaseRenderer):
+    """Renders a list of Markdown block dictionaries into an HTML string.
+
+    This renderer converts the structured block data generated by the parser
+    into standard HTML tags, applying appropriate styling classes and handling
+    various Markdown elements such as headings, paragraphs, lists, code blocks,
+    images, blockquotes, callouts, and tables. It also supports dynamic
+    replacement of `{{date}}` and `{{time}}` placeholders within the content.
+    """
 
     def render_block(self, block: dict[str, Any]) -> str:
-        for tag in HEADINGS:
-            if tag in block:
-                classes = f"content-{tag}"
-                return f"<{tag} class='{classes}'>{_escape(block[tag])}</{tag}>"
+        """Renders a single Markdown block dictionary into its HTML string representation.
 
+        This method inspects the type of the given block and dispatches it
+        to the appropriate rendering logic. It handles various Markdown elements
+        including headings, paragraphs, blockquotes, callouts, images, code blocks,
+        tables, and lists. Placeholders like `{{date}}` and `{{time}}` are
+        replaced in relevant text content.
+
+        Args:
+            block: A dictionary representing a single parsed Markdown block.
+
+        Returns:
+            An HTML string for the given block, or an empty string if the block
+            type is not recognized or cannot be rendered.
+        """
+
+        # Render Headings (h1, h2, etc.)
+        for tag_name in HEADINGS:
+            if tag_name in block:
+                # Construct HTML class for styling (e.g., 'content-h1').
+                css_classes = f"content-{tag_name}"
+                # Escape content and replace date/time placeholders.
+                content = _escape(self._apply_dt(block[tag_name]))
+                return f"<{tag_name} class='{css_classes}'>{content}</{tag_name}>"
+
+
+        # Render Paragraphs
         if "p" in block:
-            content = render_inline_links(block["p"])
-            return f"<p class='content-paragraph'>{content}</p>"
+            # Escape content, replace date/time placeholders, and handle inline links/images.
+            processed_content = render_inline_links(self._apply_dt(block["p"]))
+            return f"<p class='content-paragraph'>{processed_content}</p>"
 
+
+        # Render Blockquotes
         if "blockquote" in block:
-            content = _escape(block["blockquote"])
-            return f"<blockquote class='content-blockquote'><p>{content}</p></blockquote>"
+            # Escape content and replace date/time placeholders.
+            blockquote_content = _escape(self._apply_dt(block["blockquote"]))
+            return f"<blockquote class='content-blockquote'><p>{blockquote_content}</p></blockquote>"
 
-        for callout in CALLOUTS:
-            key = f"callout-{callout}"
-            if key in block:
-                title = callout.capitalize()
+
+        # Render Callouts (e.g., [!NOTE], [!WARNING])
+        for callout_type in CALLOUTS:
+            block_key = f"callout-{callout_type}"
+            if block_key in block:
+                # Capitalize the callout type for display (e.g., "Note", "Warning").
+                display_title = callout_type.capitalize()
+                # Escape display title, replace date/time placeholders in content,
+                # and handle inline links/images within callout text.
+                callout_content = render_inline_links(self._apply_dt(block[block_key]))
                 return (
-                    f'<div class="callout callout-{callout}">'
-                    f"<strong>{_escape(title)}</strong> {render_inline_links(block[key])}</div>"
+                    f'<div class="callout callout-{callout_type}">'
+                    f"<strong>{_escape(display_title)}</strong> {callout_content}</div>"
                 )
 
+
+        # Alternative Callout Parsing (if paragraph starts with !TYPE)
+        # This block appears to be a fallback or alternative parsing method for callouts
+        # that might be redundant with the block above if parsing is consistent.
+        # It checks if a paragraph starts with a marker like "!NOTE".
         if "p" in block and block["p"].strip().startswith("!"):
-            p = block["p"].strip()
-            for callout in CALLOUTS:
-                marker = f"!{callout.upper()}"
-                if p.startswith(marker):
-                    content = p[len(marker):].strip()
-                    title = callout.capitalize()
+            paragraph_text = block["p"].strip()
+            for callout_type in CALLOUTS:
+                marker_upper = f"!{callout_type.upper()}"
+                if paragraph_text.startswith(marker_upper):
+                    # Extract content after the marker.
+                    extracted_content = paragraph_text[len(marker_upper):].strip()
+                    display_title = callout_type.capitalize()
+                    callout_content = render_inline_links(self._apply_dt(extracted_content))
                     return (
-                        f'<div class="callout callout-{callout}">'
-                        f"<strong>{_escape(title)}</strong> {render_inline_links(content)}</div>"
+                        f'<div class="callout callout-{callout_type}">'
+                        f"<strong>{_escape(display_title)}</strong> {callout_content}</div>"
                     )
 
-        if "image" in block:
-            img = block.get("image") or {}
-            src = _escape(img.get("src", ""))
-            alt = _escape(img.get("alt", ""))
-            caption = _escape(img.get("caption", ""))
-            figcaption = f"<figcaption class='caption'>{caption}</figcaption>" if caption else ""
-            return f'<figure class="content-figure"><img src="{src}" alt="{alt}" class="content-image"/>{figcaption}</figure>'
 
-        if "code" in block:
-            code_obj = block.get("code") or {}
-            code = _escape(code_obj.get("text", ""))
-            lang = _escape(code_obj.get("lang", "")) or "plaintext"
-            class_attr = f' class="language-{lang}"' if lang else ""
-            return f"<pre class='content-code'><code{class_attr}>{code}</code></pre>"
-        if "table" in block:
-            table = block.get("table") or {}
-            headers = table.get("headers", [])
-            rows = table.get("rows", [])
-            thead = "".join(f"<th>{_escape(h)}</th>" for h in headers)
-            tbody = ""
-            for row in rows:
-                tbody += "<tr>"
-                for cell in row:
-                    rendered = render_inline_links(cell)
-                    tbody += f"<td>{rendered}</td>"
-                tbody += "</tr>"
+        # Render Images
+        if "image" in block:
+            image_data = block.get("image") or {}
+            # Extract and escape image attributes. Replace date/time in alt and caption.
+            source_url = _escape(image_data.get("src", ""))
+            alt_text = _escape(self._apply_dt(image_data.get("alt", "")))
+            image_caption = _escape(self._apply_dt(image_data.get("caption", "")))
+            
+            # Create figcaption HTML only if a caption is provided.
+            figcaption_html = f"<figcaption class='caption'>{image_caption}</figcaption>" if image_caption else ""
             return (
-                "<table class='content-table'>"
-                f"<thead><tr>{thead}</tr></thead>"
-                f"<tbody>{tbody}</tbody></table>"
+                f'<figure class="content-figure">'
+                f'<img src="{source_url}" alt="{alt_text}" class="content-image"/>'
+                f'{figcaption_html}</figure>'
             )
 
+
+        # Render Code Blocks
+        if "code" in block:
+            code_data = block.get("code") or {}
+            # Extract and escape code content and language.
+            code_text = _escape(code_data.get("text", ""))
+            code_language = _escape(code_data.get("lang", "")) or "plaintext"
+            # Add language class for syntax highlighting if specified.
+            language_class_attr = f' class="language-{code_language}"' if code_language else ""
+            return f"<pre class='content-code'><code{language_class_attr}>{code_text}</code></pre>"
+        
+        # Render Tables
+        if "table" in block:
+            table_data = block.get("table") or {}
+            table_headers = table_data.get("headers", [])
+            table_rows = table_data.get("rows", [])
+            
+            # Render table headers. Replace date/time in header text.
+            header_html = "".join(f"<th>{_escape(self._apply_dt(h))}</th>" for h in table_headers)
+            
+            # Render table body rows and cells. Replace date/time and inline links in cell content.
+            body_html = ""
+            for row_data in table_rows:
+                body_html += "<tr>"
+                for cell_content in row_data:
+                    rendered_cell = render_inline_links(self._apply_dt(cell_content))
+                    body_html += f"<td>{rendered_cell}</td>"
+                body_html += "</tr>"
+            
+            return (
+                "<table class='content-table'>"
+                f"<thead><tr>{header_html}</tr></thead>"
+                f"<tbody>{body_html}</tbody></table>"
+            )
+
+
+        # Render Unordered Lists
         if "ul" in block:
             return self._render_list_html("ul", block["ul"]) 
+
 
         if "ol" in block:
             return self._render_list_html("ol", block["ol"]) 
@@ -144,179 +402,479 @@ class HTMLRenderer:
         # No matching renderer for this block: return empty string
         return ""
     def _render_list_html(self, list_type: str, items: list[object]) -> str:
-        tag = "ul" if list_type == "ul" else "ol"
-        parts: list[str] = []
-        for item in items:
-            if isinstance(item, str):
-                parts.append(f"<li>{render_inline_links(item)}</li>")
-            elif isinstance(item, dict):
-                # item may be {'p': 'text', 'ul': [...] } or nested list directly {'ul': [...]}
-                content = ""
-                nested_html = ""
-                if "p" in item:
-                    content = render_inline_links(item["p"])
-                # detect nested lists
-                if "ul" in item:
-                    nested_html = self._render_list_html("ul", item["ul"])
-                if "ol" in item:
-                    nested_html = self._render_list_html("ol", item["ol"])
-                if content or nested_html:
-                    parts.append(f"<li>{content}{nested_html}</li>")
-                else:
-                    # fallback: render dict as text
-                    parts.append(f"<li>{render_inline_links(str(item))}</li>")
-            else:
-                parts.append(f"<li>{render_inline_links(str(item))}</li>")
-        return f"<{tag} class='content-list'>{''.join(parts)}</{tag}>"
+        """Helper method to recursively render an HTML list (unordered or ordered).
 
-    def render_blocks(self, blocks: list[dict[str, Any]]) -> str:
+        This function processes a list of items, where each item can be a string,
+        a dictionary (for items with paragraphs and/or nested lists), or other
+        objects. It recursively calls itself to render nested lists.
+
+        Args:
+            list_type: A string, either "ul" for unordered list or "ol" for ordered list.
+            items: A list of items to be rendered within the list. Each item can be
+                   a string (plain text), a dictionary (for structured content),
+                   or another object.
+
+        Returns:
+            An HTML string representing the fully rendered list, including its items
+            and any nested lists.
+        """
+        # Determine the HTML tag for the list (<ul> or <ol>).
+        list_html_tag = "ul" if list_type == "ul" else "ol"
+        
+        # This list will accumulate the HTML strings for each list item.
+        list_item_parts: list[str] = []
+        
+        for item_data in items:
+            # Handle plain string list items.
+            if isinstance(item_data, str):
+                # Apply date/time placeholders, render inline links, and wrap in <li>.
+                processed_content = render_inline_links(self._apply_dt(item_data))
+                list_item_parts.append(f"<li>{processed_content}</li>")
+            
+            # Handle dictionary list items (can contain paragraphs and/or nested lists).
+            elif isinstance(item_data, dict):
+                item_content_html = ""
+                nested_list_html = ""
+                
+                # If the item has a paragraph ('p') key, process its content.
+                if "p" in item_data:
+                    processed_paragraph = render_inline_links(self._apply_dt(item_data["p"]))
+                    item_content_html = processed_paragraph
+                
+                # Detect and recursively render nested unordered lists.
+                if "ul" in item_data:
+                    nested_list_html = self._render_list_html("ul", item_data["ul"])
+                # Detect and recursively render nested ordered lists.
+                if "ol" in item_data:
+                    nested_list_html = self._render_list_html("ol", item_data["ol"])
+                
+                # Combine content and nested list HTML for the current list item.
+                if item_content_html or nested_list_html:
+                    list_item_parts.append(f"<li>{item_content_html}{nested_list_html}</li>")
+                else:
+                    # Fallback for dictionaries without 'p' or nested lists (e.g., malformed).
+                    fallback_content = render_inline_links(self._apply_dt(str(item_data)))
+                    list_item_parts.append(f"<li>{fallback_content}</li>")
+            
+            # Handle other types of list items (e.g., direct objects converted to string).
+            else:
+                fallback_content = render_inline_links(self._apply_dt(str(item_data)))
+                list_item_parts.append(f"<li>{fallback_content}</li>")
+        
+        # Join all list item HTML strings and wrap them in the appropriate list tag.
+        return f"<{list_html_tag} class='content-list'>{''.join(list_item_parts)}</{list_html_tag}>"
+
+    def render_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
+        **kwargs
+    ) -> str:
+        """Renders a list of Markdown block dictionaries into a complete HTML string."""
+        super().render_blocks(blocks, title, description, date, time, source_date)
         return "\n".join(self.render_block(b) for b in blocks)
 
 
-class GemtextRenderer:
-    """Render a simple Gemtext (Gemini) textual representation."""
+class GemtextRenderer(BaseRenderer):
+    """Renders a list of Markdown block dictionaries into a Gemtext string.
 
-    def render_blocks(self, blocks: list[dict[str, Any]], title: str | None = None, description: str | None = None) -> str:
-        # helper: render list items with indentation
-        def _render_list(items, indent: int = 0, ordered: bool = False):
-            out: list[str] = []
-            for idx, item in enumerate(items, start=1):
-                prefix = " " * indent
-                if isinstance(item, str):
-                    if ordered:
-                        out.append(f"{prefix}{idx}. {item}")
+    Gemtext is a minimalist markup language used for the Gemini protocol.
+    This renderer converts parsed Markdown blocks into their Gemtext equivalents,
+    including headings, paragraphs, lists, code blocks, and links. It also
+    supports dynamic date and time placeholder replacement.
+    """
+
+
+    def render_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
+        **kwargs
+    ) -> str:
+        """Renders a list of Markdown block dictionaries into a Gemtext string."""
+        super().render_blocks(blocks, title, description, date, time, source_date)
+        
+        # Inner helper function to recursively render list items with appropriate Gemtext indentation.
+        def _render_list(list_items, indent: int = 0, is_ordered: bool = False):
+            output_lines: list[str] = []
+            # Iterate through each item in the list.
+            for item_index, item_data in enumerate(list_items, start=1):
+                # Calculate the prefix for indentation.
+                indent_prefix = " " * indent
+                
+                if isinstance(item_data, str):
+                    # For a plain string item, apply the correct list marker (* for unordered, N. for ordered).
+                    if is_ordered:
+                        output_lines.append(f"{indent_prefix}{item_index}. {item_data}")
                     else:
-                        out.append(f"{prefix}* {item}")
-                elif isinstance(item, dict):
-                    # item may be {'p': 'text', 'ul': [...] } or nested list directly {'ul': [...]}
-                    if "p" in item:
-                        if ordered:
-                            out.append(f"{prefix}{idx}. {item['p']}")
+                        output_lines.append(f"{indent_prefix}* {item_data}")
+                
+                elif isinstance(item_data, dict):
+                    # If the item is a dictionary, it might contain a paragraph and/or nested lists.
+                    if "p" in item_data:
+                        # Apply list marker to the paragraph content.
+                        if is_ordered:
+                            output_lines.append(f"{indent_prefix}{item_index}. {item_data['p']}")
                         else:
-                            out.append(f"{prefix}* {item['p']}")
-                    # nested unordered
-                    if "ul" in item:
-                        out.extend(_render_list(item["ul"], indent=indent + 2, ordered=False))
-                    if "ol" in item:
-                        out.extend(_render_list(item["ol"], indent=indent + 2, ordered=True))
+                            output_lines.append(f"{indent_prefix}* {item_data['p']}")
+                    
+                    # Recursively render nested unordered lists.
+                    if "ul" in item_data:
+                        output_lines.extend(_render_list(item_data["ul"], indent=indent + 2, is_ordered=False))
+                    # Recursively render nested ordered lists.
+                    if "ol" in item_data:
+                        output_lines.extend(_render_list(item_data["ol"], indent=indent + 2, is_ordered=True))
                 else:
-                    out.append(f"{prefix}* {str(item)}")
-            return out
+                    # Fallback for unexpected item types, treating them as strings.
+                    output_lines.append(f"{indent_prefix}* {str(item_data)}")
+            return output_lines
 
-        # link extraction helper
-        link_pat = re.compile(r"\[(?P<label>[^\]]+)\]\((?P<href>[^\)]+)\)")
 
-        lines: list[str] = []
+        # Regex to find Markdown link patterns within text for Gemtext conversion.
+        link_pattern = re.compile(r"\[(?P<label>[^\]]+)\]\((?P<href>[^\)]+)\)")
+
+
+        rendered_lines: list[str] = []
+        # Add title and description (if provided) as Gemtext headers.
         if title:
-            lines.append(f"# {title}")
+            rendered_lines.append(f"# {self._apply_dt(title)}") # Main title
             if description:
-                lines.append(description)
+                rendered_lines.append(self._apply_dt(description)) # Description below title
+            
+            # Optionally add date/time if available.
+            if date or time:
+                combined_datetime = " ".join(x for x in (date or "", time or "") if x)
+                if combined_datetime:
+                    rendered_lines.append(combined_datetime)
 
+
+        # Iterate through each parsed Markdown block to convert it to Gemtext.
         for block in blocks:
-            if any(h in block for h in HEADINGS):
-                for h in HEADINGS:
-                    if h in block:
-                        level = int(h[1])
-                        lines.append("#" * level + " " + str(block[h]))
-                        break
+            # Render Headings (H1, H2, H3, etc.)
+            if any(h_tag in block for h_tag in HEADINGS):
+                for h_tag in HEADINGS:
+                    if h_tag in block:
+                        heading_level = int(h_tag[1]) # Extract heading level (e.g., 1 from 'h1').
+                        # Gemtext headings use # based on level.
+                        rendered_lines.append("#" * heading_level + " " + self._apply_dt(str(block[h_tag])))
+                        break # Only process the first heading found in the block.
+            
+            # Render Paragraphs and Links
             elif "p" in block:
-                text = str(block["p"])
-                # replace link markup with label and append gemini link lines after
-                links = [(m.group('label'), m.group('href')) for m in link_pat.finditer(text)]
-                text = link_pat.sub(lambda m: m.group('label'), text)
-                lines.append(text)
-                for label, href in links:
-                    lines.append(f"=> {href} {label}")
+                # Apply date/time placeholders to the paragraph text.
+                paragraph_text = self._apply_dt(str(block["p"]))
+                
+                # Extract links from the paragraph to format them for Gemtext.
+                extracted_links = [(m.group('label'), m.group('href')) for m in link_pattern.finditer(paragraph_text)]
+                # Remove Markdown link syntax from the paragraph text itself.
+                paragraph_text = link_pattern.sub(lambda m: m.group('label'), paragraph_text)
+                rendered_lines.append(paragraph_text)
+                
+                # Add Gemtext link lines after the paragraph.
+                for link_label, link_href in extracted_links:
+                    rendered_lines.append(f"=> {link_href} {link_label}")
+            
+            # Render Code Blocks
             elif "code" in block:
-                code = block["code"].get("text", "")
-                lines.append("```")
-                lines.append(code)
-                lines.append("```")
+                code_content = block["code"].get("text", "")
+                rendered_lines.append("```") # Gemtext code block start marker.
+                rendered_lines.append(code_content)
+                rendered_lines.append("```") # Gemtext code block end marker.
+            
+            # Render Unordered Lists
             elif "ul" in block:
-                lines.extend(_render_list(block["ul"], indent=0, ordered=False))
+                # Use the inner helper to render the list.
+                rendered_lines.extend(_render_list(block["ul"], indent=0, is_ordered=False))
+            
+            # Render Ordered Lists
             elif "ol" in block:
-                lines.extend(_render_list(block["ol"], indent=0, ordered=True))
+                # Use the inner helper to render the list.
+                rendered_lines.extend(_render_list(block["ol"], indent=0, is_ordered=True))
+            
+            # Render Images
             elif "image" in block:
-                img = block["image"] or {}
-                src = img.get('src', '')
-                alt = img.get('alt', '')
-                lines.append(f"=> {src} {alt}")
+                image_data = block["image"] or {}
+                image_src = image_data.get('src', '')
+                image_alt = self._apply_dt(image_data.get('alt', ''))
+                # Gemtext links are used for images.
+                rendered_lines.append(f"=> {image_src} {image_alt}")
+            
+            # Render Blockquotes
             elif "blockquote" in block:
-                lines.append(str(block["blockquote"]))
+                # Gemtext blockquotes start with '> '.
+                rendered_lines.append(f"> {str(block['blockquote'])}")
 
-        return "\n\n".join(lines)
+        # Join all rendered lines with double newlines to separate blocks in Gemtext.
+        return "\n\n".join(rendered_lines)
 
 
-class GopherRenderer:
-    """Render a Gophermap-like plain-text stub from blocks."""
+class GopherRenderer(BaseRenderer):
+    """Renders a list of Markdown block dictionaries into a Gophermap-like plain-text format.
 
-    def render_blocks(self, blocks: list[dict[str, Any]], title: str | None = None, description: str | None = None, host: str = "localhost", port: int = 70) -> str:
-        """Produce a simple, more spec-compliant gophermap.
+    Gophermap is a simple, line-oriented text format for the Gopher protocol.
+    This renderer converts parsed Markdown blocks into corresponding Gophermap
+    lines, which include informational lines ('i' type) and handle structured
+    content like headings, paragraphs, lists, and code blocks. It also
+    supports dynamic date and time placeholder replacement.
+    """
 
-        Each line follows the format: <type><display>\t<selector>\t<host>\t<port>
-        For informational lines we use type 'i' and an empty selector.
-        """
-        lines: list[str] = []
+
+    def render_blocks(
+        self,
+        blocks: list[dict[str, Any]],
+        title: str | None = None,
+        description: str | None = None,
+        date: str | None = None,
+        time: str | None = None,
+        source_date: str | None = None,
+        host: str = "localhost",
+        port: int = 70,
+        **kwargs
+    ) -> str:
+        """Produces a simple, Gophermap-compliant text representation from Markdown blocks."""
+        super().render_blocks(blocks, title, description, date, time, source_date)
+
+        gopher_lines: list[str] = []
+        # Add title and description (if provided) as informational Gophermap lines.
         if title:
-            lines.append(f"i{title}\t\t{host}\t{port}")
+            gopher_lines.append(f"i{self._apply_dt(title)}\t\t{host}\t{port}")
             if description:
-                lines.append(f"i{description}\t\t{host}\t{port}")
+                gopher_lines.append(f"i{self._apply_dt(description)}\t\t{host}\t{port}")
+            
+            # Optionally add date/time if available.
+            if date or time:
+                combined_datetime = " ".join(x for x in (date or "", time or "") if x)
+                if combined_datetime:
+                    gopher_lines.append(f"i{combined_datetime}\t\t{host}\t{port}")
 
-        def _render_list(items, indent: int = 0, ordered: bool = False):
-            out: list[str] = []
-            for idx, item in enumerate(items, start=1):
-                prefix = " " * indent
-                if isinstance(item, str):
-                    if ordered:
-                        display = f"{prefix}{idx}. {item}"
+
+        # Inner helper function to recursively render list items for Gophermap.
+        def _render_list(list_items, indent: int = 0, is_ordered: bool = False):
+            output_lines: list[str] = []
+            # Iterate through each item in the list.
+            for item_index, item_data in enumerate(list_items, start=1):
+                indent_prefix = " " * indent
+                
+                # Handle plain string list items.
+                if isinstance(item_data, str):
+                    display_text = ""
+                    if is_ordered:
+                        display_text = f"{indent_prefix}{item_index}. {self._apply_dt(item_data)}"
                     else:
-                        display = f"{prefix}- {item}"
-                    out.append(f"i{display}\t\t{host}\t{port}")
-                elif isinstance(item, dict):
-                    if "p" in item:
-                        display = f"{prefix}- {item['p']}"
-                        out.append(f"i{display}\t\t{host}\t{port}")
-                    if "ul" in item:
-                        out.extend(_render_list(item["ul"], indent=indent + 2, ordered=False))
-                    if "ol" in item:
-                        out.extend(_render_list(item["ol"], indent=indent + 2, ordered=True))
+                        display_text = f"{indent_prefix}- {self._apply_dt(item_data)}"
+                    output_lines.append(f"i{display_text}\t\t{host}\t{port}")
+                
+                # Handle dictionary list items (can contain paragraphs and/or nested lists).
+                elif isinstance(item_data, dict):
+                    if "p" in item_data:
+                        display_text = f"{indent_prefix}- {self._apply_dt(item_data['p'])}"
+                        output_lines.append(f"i{display_text}\t\t{host}\t{port}")
+                    
+                    # Recursively render nested unordered lists.
+                    if "ul" in item_data:
+                        output_lines.extend(_render_list(item_data["ul"], indent=indent + 2, is_ordered=False))
+                    # Recursively render nested ordered lists.
+                    if "ol" in item_data:
+                        output_lines.extend(_render_list(item_data["ol"], indent=indent + 2, is_ordered=True))
                 else:
-                    display = f"{prefix}- {str(item)}"
-                    out.append(f"i{display}\t\t{host}\t{port}")
-            return out
+                    # Fallback for unexpected item types, treating them as strings.
+                    display_text = f"{indent_prefix}- {self._apply_dt(str(item_data))}"
+                    output_lines.append(f"i{display_text}\t\t{host}\t{port}")
+            return output_lines
 
+
+        # Iterate through each parsed Markdown block to convert it to Gophermap.
         for block in blocks:
+            # Render Paragraphs
             if "p" in block:
-                display = str(block["p"]).replace("\t", " ")
-                lines.append(f"i{display}\t\t{host}\t{port}")
+                # Get paragraph content, apply placeholders, and replace tabs for Gophermap compatibility.
+                paragraph_display = self._apply_dt(str(block["p"])).replace("\t", " ")
+                gopher_lines.append(f"i{paragraph_display}\t\t{host}\t{port}")
+            
+            # Render H1 Headings (other headings are typically just text in Gophermap)
             elif "h1" in block:
-                display = "# " + str(block["h1"]) 
-                lines.append(f"i{display}\t\t{host}\t{port}")
+                heading_display = "# " + self._apply_dt(str(block["h1"]))
+                gopher_lines.append(f"i{heading_display}\t\t{host}\t{port}")
+            
+            # Render Unordered Lists
             elif "ul" in block:
-                lines.extend(_render_list(block["ul"], indent=0, ordered=False))
+                gopher_lines.extend(_render_list(block["ul"], indent=0, is_ordered=False))
+            
+            # Render Ordered Lists
             elif "ol" in block:
-                lines.extend(_render_list(block["ol"], indent=0, ordered=True))
+                gopher_lines.extend(_render_list(block["ol"], indent=0, is_ordered=True))
+            
+            # Render Code Blocks
             elif "code" in block:
-                code_text = block["code"].get("text", "")
-                for line in code_text.splitlines():
-                    lines.append(f"i{line}\t\t{host}\t{port}")
+                code_content = block["code"].get("text", "")
+                # Each line of the code block is an informational Gophermap line.
+                for code_line in code_content.splitlines():
+                    gopher_lines.append(f"i{self._apply_dt(code_line)}\t\t{host}\t{port}")
 
-        # Use CRLF as gopher historically expects CRLF separators
-        return "\r\n".join(lines) + "\r\n"
+        # Gopher protocol historically expects CRLF (Carriage Return Line Feed) as line endings.
+        return "\r\n".join(gopher_lines) + "\r\n"
 
 
 # Backwards-compatible thin wrappers
+
+
 def render_block(block: dict[str, Any]) -> str:
+
+
+    """Renders a single Markdown block dictionary into its HTML string representation.
+
+
+
+
+
+    This is a convenience wrapper that instantiates `HTMLRenderer` and calls its `render_block` method.
+
+
+    It's provided for backward compatibility.
+
+
+
+
+
+    Args:
+
+
+        block: A dictionary representing a single parsed Markdown block.
+
+
+
+
+
+    Returns:
+
+
+        An HTML string for the given block.
+
+
+    """
+
+
+
+
+
     return HTMLRenderer().render_block(block)
 
 
-def render_blocks(blocks: list[dict[str, Any]], fmt: str = "html", title: str | None = None, description: str | None = None) -> str:
-    fmt = (fmt or "").lower()
-    if fmt == "html":
-        return HTMLRenderer().render_blocks(blocks)
-    if fmt == "gemini" or fmt == "gemtext":
-        return GemtextRenderer().render_blocks(blocks, title=title, description=description)
-    if fmt == "gopher":
-        return GopherRenderer().render_blocks(blocks, title=title, description=description)
+
+
+
+
+
+
+def render_blocks(blocks: list[dict[str, Any]], fmt: str = "html", title: str | None = None, description: str | None = None, date: str | None = None, time: str | None = None) -> str:
+
+
+    """Renders a list of Markdown block dictionaries into a specified output format.
+
+
+
+
+
+    This is a convenience wrapper function that dispatches the rendering task
+
+
+    to the appropriate renderer class (HTMLRenderer, GemtextRenderer, or GopherRenderer)
+
+
+    based on the `fmt` argument. It's provided for backward compatibility.
+
+
+
+
+
+    Args:
+
+
+        blocks: A list of dictionaries, each representing a parsed Markdown block.
+
+
+        fmt: The desired output format ("html", "gemini", or "gopher"). Defaults to "html".
+
+
+        title: The title of the document.
+
+
+        description: A brief description of the document.
+
+
+        date: The current date string for placeholder replacement.
+
+
+        time: The current time string for placeholder replacement.
+
+
+
+
+
+    Returns:
+
+
+        A string representing the fully rendered document content in the specified format.
+
+
+    """
+
+
+
+
+
+    fmt_lower = (fmt or "").lower() # Ensure format is lowercase for comparison.
+
+
+    
+
+
+    if fmt_lower == "html":
+
+
+        # Render HTML using HTMLRenderer, passing all relevant metadata.
+
+
+        return HTMLRenderer().render_blocks(blocks, title=title, description=description, date=date, time=time)
+
+
+    
+
+
+    if fmt_lower == "gemini" or fmt_lower == "gemtext":
+
+
+        # Render Gemtext using GemtextRenderer, passing relevant metadata.
+
+
+        return GemtextRenderer().render_blocks(blocks, title=title, description=description, date=date, time=time)
+
+
+    
+
+
+    if fmt_lower == "gopher":
+
+
+        # Render Gophermap using GopherRenderer, passing relevant metadata.
+
+
+        return GopherRenderer().render_blocks(blocks, title=title, description=description, date=date, time=time)
+
+
+    
+
+
+    # Fallback if an unsupported format is requested.
+
+
     return "\n\n".join(str(b) for b in blocks)
 

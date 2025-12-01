@@ -2,10 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.4] - 2025-11-24
+## [0.1.4] - 2025-12-01
 
 ### Added
 
+- New `update` command to refresh existing files with smart metadata detection.
 - Support for nested Markdown lists in the parser.
 - Gemtext (Gemini) and Gopher renderers with improved output formatting.
 - New CLI flags: `-i/--input`, `-T/--template`, `-o/--output`, `-t/--title`, `-d/--description`, `-f/--format`.
