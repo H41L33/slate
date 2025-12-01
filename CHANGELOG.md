@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.2.0 - 2024-12-01
+
+**Major Release:** Site Management System
+
+Slate v0.2.0 transforms from a single-file transpiler to a complete site management system while maintaining its core philosophy of simplicity and hackability.
+
+### Added
+
+- **Frontmatter Support:** YAML frontmatter parsing with fields: `title`, `description`, `template`, `category`, `type`, `date`, `author`
+- **Site Discovery:** Automatic site structure discovery from `index.md` with category-based organization
+- **Navigation Generation:** Auto-generated header navigation and category-specific page lists
+- **`slate rebuild` Command:** Batch processing to rebuild entire site with one command
+- **RSS Feed Generation:** Automatic RSS 2.0 feed generation for blog categories (`feed.xml`)
+- **Table of Contents:** `{{toc}}` variable for auto-generated TOC from headings
+- **Footnotes Support:** Markdown footnote syntax with automatic rendering
+- **Default Template:** Minimal, hackable HTML template with inline documentation (`templates/default.html`)
+- **New Template Variables:** `{{nav_header}}`, `{{nav_category}}`, `{{category_name}}`, `{{breadcrumbs}}`, `{{toc}}`
+
+### Changed
+
+- Frontmatter takes precedence over CLI arguments when both are present
+- Blog posts (` type: blog`) now require `date` and `title` fields for validation
+
+### Documentation
+
+- Created comprehensive documentation in `.agent/` for LLMs
+- Created human-readable guides in `documentation/hacking/humans/`
+- Updated README with site management examples
+- Added PyYAML and types-PyYAML dependencies
+
 ## v0.1.6
 
 - Added `{{version}}` variable.

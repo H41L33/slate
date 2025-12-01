@@ -57,6 +57,66 @@ You can still override the input or template if needed:
 slate update output.html input.md -T new_template.html
 ```
 
+### Site Management (v0.2.0+)
+
+Slate can now manage multi-page sites with auto-generated navigation and RSS feeds!
+
+Create an `index.md` with categories:
+```yaml
+---
+categories: [blog, projects]
+title: My Site
+url: https://example.com
+template: templates/default.html
+---
+
+Welcome to my site!
+```
+
+Create category root pages (`blog.md`, `projects.md`) and organize pages in directories:
+```
+your-site/
+├── index.md
+├── blog.md
+├── blog/
+│   ├── post1.md
+│   └── post2.md
+├── projects.md
+└── projects/
+    └── my-project.md
+```
+
+Then rebuild your entire site:
+```bash
+slate rebuild
+```
+
+This will:
+- Build all pages with auto-generated navigation
+- Generate RSS feeds for blog categories  
+- Create table of contents from headings
+- Apply consistent templates across your site
+
+### Frontmatter (v0.2.0+)
+
+Add YAML frontmatter to your Markdown files:
+
+```yaml
+---
+title: My Blog Post
+description: A great post about things
+template: templates/blog.html
+category: blog
+type: blog  # or "page"
+date: 2024-12-01
+author: Your Name
+---
+
+# Your content here
+```
+
+Frontmatter takes precedence over CLI arguments when both are present.
+
 ### Dynamic Links
 
 Slate supports "Dynamic Links" to keep your Markdown navigable on GitHub/Obsidian but working correctly on your site.
@@ -79,11 +139,16 @@ Your Jinja2 templates have access to these variables:
 | `{{ content }}` | The rendered content (HTML, Gemtext, or Gopher). |
 | `{{ title }}` | The page title. |
 | `{{ description }}` | The page description. |
-| `{{ creation_date }}` | The original creation date of the document (persisted in metadata). |
-| `{{ creation_time }}` | The original creation time of the document (persisted in metadata). |
-| `{{ modify_date }}` | The date the file was last regenerated/modified. |
-| `{{ modify_time }}` | The time the file was last regenerated/modified. |
-| `{{ version }}` | The current version of Slate. |
+| `{{ creation_date }}` | Original creation date (persisted in metadata). |
+| `{{ creation_time }}` | Original creation time (persisted in metadata). |
+| `{{ modify_date }}` | Last modification date. |
+| `{{ modify_time }}` | Last modification time. |
+| `{{ version }}` | Slate version. |
+| `{{ nav_header }}` | **v0.2.0+** Header navigation (links to categories). |
+| `{{ nav_category }}` | **v0.2.0+** Category navigation (links to pages). |
+| `{{ category_name }}` | **v0.2.0+** Current category name. |
+| `{{ breadcrumbs }}` | **v0.2.0+** Breadcrumb navigation. |
+| `{{ toc }}` | **v0.2.0+** Auto-generated table of contents. |
 
 ## Why Slate?
 
