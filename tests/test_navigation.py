@@ -1,11 +1,12 @@
 """Tests for navigation generation."""
 
-import pytest
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from slate.navigation import NavigationGenerator, build_navigation_context
-from slate.site import Site, Category, Page
+from slate.site import Category, Page, Site
 
 
 class TestNavigationGenerator:

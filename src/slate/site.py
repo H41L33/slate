@@ -13,7 +13,7 @@ Site Structure Rules:
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from slate.frontmatter import extract_frontmatter, validate_frontmatter
 
@@ -24,7 +24,7 @@ class Page:
     source_path: Path  # Path to .md file
     output_path: Path  # Path to output file (.html, .gmi, etc.)
     frontmatter: dict[str, Any]  # Parsed frontmatter
-    category: Optional[str]  # Category name or None for index
+    category: str | None  # Category name or None for index
     is_category_root: bool  # True if this is {category}.md
     content: str = ""  # Markdown content (without frontmatter)
 
@@ -102,7 +102,7 @@ def discover_site(root_path: Path) -> Site:
     # Validate index frontmatter
     errors = validate_frontmatter(index_frontmatter, str(index_path))
     if errors:
-        raise ValueError(f"Invalid index.md frontmatter:\n" + "\n".join(errors))
+        raise ValueError("Invalid index.md frontmatter:\n" + "\n".join(errors))
     
     index_page = Page(
         source_path=index_path,

@@ -1,15 +1,14 @@
 """Tests for site structure discovery."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from slate.site import (
+    Page,
     discover_site,
     validate_site_structure,
-    Page,
-    Category,
-    Site,
 )
 
 

@@ -1,11 +1,13 @@
 """Tests for frontmatter parsing and validation."""
 
-import pytest
 from datetime import datetime
+
+import pytest
+
 from slate.frontmatter import (
     extract_frontmatter,
-    validate_frontmatter,
     merge_with_cli_args,
+    validate_frontmatter,
 )
 
 

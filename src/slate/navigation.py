@@ -5,7 +5,8 @@ including header navigation and category-specific navigation.
 """
 
 from typing import Any
-from slate.site import Site, Category
+
+from slate.site import Category, Site
 
 
 class NavigationGenerator:

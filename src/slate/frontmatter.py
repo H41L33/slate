@@ -21,11 +21,11 @@ from typing import Any
 
 try:
     import yaml
-except ImportError:
+except ImportError as exc:
     raise ImportError(
         "PyYAML is required for frontmatter support. "
         "Install with: pip install pyyaml"
-    )
+    ) from exc
 
 
 def extract_frontmatter(md_text: str) -> tuple[dict[str, Any], str]:
@@ -58,7 +58,7 @@ def extract_frontmatter(md_text: str) -> tuple[dict[str, Any], str]:
         if metadata is None:
             metadata = {}
     except yaml.YAMLError as e:
-        raise ValueError(f"Invalid frontmatter YAML: {e}")
+        raise ValueError(f"Invalid frontmatter YAML: {e}") from e
     
     return metadata, markdown_content
 
