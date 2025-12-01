@@ -207,6 +207,12 @@ VariableRegistry.register("modify_time", lambda c: c.get("modify_time", ""))
 VariableRegistry.register("version", lambda c: c.get("version", ""))
 VariableRegistry.register("datetime", lambda c: " ".join(x for x in (c.get("creation_date", ""), c.get("creation_time", "")) if x))
 
+# Navigation variables (v0.2.0)
+VariableRegistry.register("nav_header", lambda c: c.get("nav_header", ""))
+VariableRegistry.register("nav_category", lambda c: c.get("nav_category", ""))
+VariableRegistry.register("category_name", lambda c: c.get("category_name", ""))
+VariableRegistry.register("breadcrumbs", lambda c: c.get("breadcrumbs", ""))
+
 
 class BaseRenderer:
     """Base class for all renderers."""
