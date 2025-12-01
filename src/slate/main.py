@@ -12,7 +12,6 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-import importlib.metadata
 
 from slate.loader import load_markdown, load_template
 from slate.parse import parse_markdown_to_dicts
