@@ -1,77 +1,98 @@
 # Slate
 
-Slate is a KISS, reliable Python CLI tool for converting Markdown to accessible static HTML pages. Perfect for blogs, knowledge bases, and personal sites.
+> **KISS, reliable, and accessible.**
+
+Slate is a lightweight Python CLI tool for converting Markdown to accessible static HTML pages, Gemtext, and Gophermaps. Designed for blogs, knowledge bases, and personal sites where simplicity is paramount.
 
 ## Features
 
-- Converts Markdown to HTML with semantic tags
-
-- Supports headings, paragraphs, lists, tables, blockquotes, images, code blocks, inline code, and links
-
-- Parses custom Markdown callouts (e.g., [!NOTE], [!WARNING])
-
-- Integrates with Jinja2 templates for customizable page layout
-
--  Outputs HTML with CSS classes for instant theme support
-
-- CLI usability: specify input, template, title override, and output destination
+- **Semantic HTML**: Converts Markdown to accessible HTML5 with semantic tags.
+- **Multi-Format**: Outputs to HTML, Gemini (Gemtext), and Gopher.
+- **Smart Updates**: intelligently updates existing files without needing to re-specify arguments.
+- **Dynamic Links**: Automatically converts `[!MD-PAGE]` links to `.html` in the output, keeping your Markdown portable.
+- **Customizable**: Integrates with Jinja2 templates and outputs CSS-ready classes.
+- **Extensible**: Easily add custom Markdown tokens via a registry system.
 
 ## Quickstart
 
-bash
-
 ### Install via pipx (recommended)
 
-`pipx install slate-md`
+```bash
+pipx install slate-md
+```
 
 ### Or, with pip:
 
-`pip install slate-md`
+```bash
+pip install slate-md
+```
 
 ## Usage
 
-### Generate a static page (new CLI flags)
+### Build a new page
 
-`slate -i input.md -T template.html -o out_dir -t "Page Title" -d "Short description" -f html`
+```bash
+slate build <input> <output> [flags]
+```
 
-- `-i, --input`: Input Markdown file path.
+- `input`: Input Markdown file path.
+- `output`: Output file path (e.g., `pages/post.html`).
+- `-f, --format`: Output format: `html` (default), `gemini`, or `gopher`.
 - `-T, --template`: Jinja2 HTML template file (required for `html` output).
-- `-o, --output`: Output directory to write the rendered file(s).
 - `-t, --title`: Optional title override; otherwise the first H1 is used.
 - `-d, --description`: Optional meta description for the template.
-- `-f, --format`: Output format: `html` (default), `gemini`, or `gopher`.
 
-Examples:
+### Update an existing page
 
-- Render HTML: `slate -i mydoc.md -T page.html -o site -t "My Doc" -f html`
-- Render Gemini (gemtext): `slate -i mydoc.md -o out -f gemini`
-- Render Gopher: `slate -i mydoc.md -o out -f gopher`
+Slate remembers the source file and template used to generate an HTML file.
 
-See `test.md` for supported Markdown features and examples.
+```bash
+slate update <output_file>
+```
 
-Callouts, images with captions, tables, and codeblocks are rendered with modern CSS and accessibility in mind.
+- `output_file`: The existing HTML file to update.
 
-## Limitations
+You can still override the input or template if needed:
+```bash
+slate update output.html input.md -T new_template.html
+```
 
-- Nested lists, nested blockquotes, and multi-line items are not fully supported
+### Dynamic Links
 
-- Complex tables with nested or block content will be flattened
+Slate supports "Dynamic Links" to keep your Markdown navigable on GitHub/Obsidian but working correctly on your site.
 
-- Markdown extensions not in CommonMark spec may be ignored
+Use the `[!MD-PAGE]` token:
+```markdown
+Check out my [!MD-PAGE] [Latest Post](posts/latest.md)
+```
+Slate converts this to:
+```html
+Check out my <a href="posts/latest.html" class="content-link">Latest Post</a>
+```
 
-- All unsupported features are documented in the example page.
+### Template Variables
+
+Your Jinja2 templates have access to these variables:
+
+- `{{ content }}`: The rendered HTML content.
+- `{{ title }}`: The page title.
+- `{{ description }}`: The page description.
+- `{{ date }}` / `{{ updated-date }}`: Build date (DD/MM/YYYY).
+- `{{ time }}` / `{{ updated-time }}`: Build time (HH:MM).
+- `{{ source-date }}`: Modification date of the source Markdown file.
 
 ## Why Slate?
 
-`slate` was created because many other SSGs were needlessly complicated for simple use cases. The goal was a tiny tool that converts Markdown into accessible HTML using a template and minimal configuration.
+Slate was created because many SSGs are needlessly complicated for me. Slate is a tiny tool that does one thing well: converts Markdown into accessible HTML (and other formats) using a template.
 
-Because of that, `slate` is not as feature-full as other SSGs, but it is very simple to get started with and easier to customize.
+- **No Config Files**: Everything is CLI arguments or embedded metadata.
+- **Monolithic CSS**: Designed to be used with a single CSS file.
+- **Hackable**: The codebase is small and easy to extend. See `documentation/hacking` for details.
 
-My personal website, [Hailey's site](https://about.haileywelsh.me), is built with `slate`. You can view that repository for examples of how to extend `slate`.
+## Documentation
 
-`slate` is designed to be used with a monolithic CSS file, and maps Markdown elements to defined CSS classes.
-
-Feel free to fork and modify.
+- [Architecture Guide](documentation/hacking/humans/architecture.md)
+- [Codebase Context](documentation/hacking/machines/codebase_context.md)
 
 ## License
 
