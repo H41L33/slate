@@ -157,15 +157,13 @@ def _custom_token_replace(match: re.Match) -> str:
     return match.group(0)
 
 
-def render_inline_links(text: str) -> str:
+def render_inline_links(text: str, site: Any = None, current_page: Any = None) -> str:
     """Replaces inline Markdown images, links, and code with their HTML equivalents.
 
-    This function processes a given text string, applying regex substitutions
-    to convert Markdown syntax for images, links, and inline code into
-    corresponding HTML tags. This is specifically used by the HTML renderer.
-
     Args:
-        text: The input text string which may contain inline Markdown.
+        text: The input text string.
+        site: Optional Site object for resolving links.
+        current_page: Optional Page object for relative path calculation.
 
     Returns:
         The text string with Markdown inline elements replaced by HTML.
@@ -174,10 +172,67 @@ def render_inline_links(text: str) -> str:
     text = IMAGE_RE.sub(_img_replace, text)
     # Replace custom tokens using the registry
     text = CUSTOM_TOKEN_RE.sub(_custom_token_replace, text)
-    # Next, replace all link Markdown with HTML <a> tags.
-    text = LINK_RE.sub(_link_replace, text)
+    
+    # Replace links with smart resolution
+    def link_replacer(match: re.Match) -> str:
+        label = _escape(match.group("label"))
+        href = match.group("href")
+        
+        # If it's an external link or anchor, leave it alone
+        if href.startswith(("http://", "https://", "#", "mailto:")):
+            return f'<a href="{_escape(href)}" class="content-link">{label}</a>'
+            
+        # If it's a markdown file, try to resolve it
+        if href.endswith(".md") and site and current_page:
+            # Try to find the target page in the site
+            # href is relative to current page source
+            try:
+                # Resolve target source path
+                target_source = (current_page.source_path.parent / href).resolve()
+                
+                # Find page with this source path
+                target_page = None
+                
+                # Check index
+                if site.index_page.source_path.resolve() == target_source:
+                    target_page = site.index_page
+                
+                # Check categories
+                if not target_page:
+                    for category in site.categories.values():
+                        if category.root_page.source_path.resolve() == target_source:
+                            target_page = category.root_page
+                            break
+                        for page in category.pages:
+                            if page.source_path.resolve() == target_source:
+                                target_page = page
+                                break
+                        if target_page:
+                            break
+                
+                if target_page:
+                    # Calculate relative path from current output to target output
+                    # We use os.path.relpath logic but with pathlib
+                    # relative_to requires one to be subpath of other, which isn't always true
+                    # so we use .. walking
+                    
+                    import os
+                    rel_path = os.path.relpath(target_page.output_path, current_page.output_path.parent)
+                    href = rel_path
+                else:
+                    # Fallback: just replace extension
+                    href = href[:-3] + ".html"
+            except Exception:
+                # If resolution fails, fallback to simple replacement
+                href = href[:-3] + ".html"
+        elif href.endswith(".md"):
+             href = href[:-3] + ".html"
+             
+        return f'<a href="{_escape(href)}" class="content-link">{label}</a>'
+
+    text = LINK_RE.sub(link_replacer, text)
+    
     # Finally, replace all inline code (backticks) with HTML <code> tags.
-    # The content inside backticks is HTML-escaped to prevent rendering issues.
     text = INLINE_CODE_RE.sub(lambda m: f'<code>{html.escape(m.group(1))}</code>', text)
     return text
 
@@ -228,6 +283,9 @@ class BaseRenderer:
         self.modify_date: str | None = None
         self.modify_time: str | None = None
         self.version: str | None = None
+        self.site: Any = None
+        self.page: Any = None
+        self.toc: str | None = None
 
     def _apply_dt(self, s: str | None) -> str:
         """Applies variable placeholders to a string using the VariableRegistry."""
@@ -241,7 +299,8 @@ class BaseRenderer:
             "creation_time": self.creation_time,
             "modify_date": self.modify_date,
             "modify_time": self.modify_time,
-            "version": self.version
+            "version": self.version,
+            "toc": self.toc
         }
         # We need to find all {{variable}} patterns and replace them
         # A simple regex for {{name}}
@@ -257,6 +316,9 @@ class BaseRenderer:
         modify_date: str | None = None,
         modify_time: str | None = None,
         version: str | None = None,
+        site: Any = None,
+        page: Any = None,
+        toc: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of blocks. Subclasses must implement specific logic."""
@@ -267,6 +329,9 @@ class BaseRenderer:
         self.modify_date = modify_date
         self.modify_time = modify_time
         self.version = version
+        self.site = site
+        self.page = page
+        self.toc = toc
         return ""
 
 
@@ -281,21 +346,7 @@ class HTMLRenderer(BaseRenderer):
     """
 
     def render_block(self, block: dict[str, Any]) -> str:
-        """Renders a single Markdown block dictionary into its HTML string representation.
-
-        This method inspects the type of the given block and dispatches it
-        to the appropriate rendering logic. It handles various Markdown elements
-        including headings, paragraphs, blockquotes, callouts, images, code blocks,
-        tables, and lists. Placeholders like `{{date}}` and `{{time}}` are
-        replaced in relevant text content.
-
-        Args:
-            block: A dictionary representing a single parsed Markdown block.
-
-        Returns:
-            An HTML string for the given block, or an empty string if the block
-            type is not recognized or cannot be rendered.
-        """
+        """Renders a single Markdown block dictionary into its HTML string representation."""
 
         # Render Headings (h1, h2, etc.)
         for tag_name in HEADINGS:
@@ -310,7 +361,11 @@ class HTMLRenderer(BaseRenderer):
         # Render Paragraphs
         if "p" in block:
             # Escape content, replace date/time placeholders, and handle inline links/images.
-            processed_content = render_inline_links(self._apply_dt(block["p"]))
+            processed_content = render_inline_links(
+                self._apply_dt(block["p"]),
+                site=self.site,
+                current_page=self.page
+            )
             return f"<p class='content-paragraph'>{processed_content}</p>"
 
 
@@ -329,7 +384,11 @@ class HTMLRenderer(BaseRenderer):
                 display_title = callout_type.capitalize()
                 # Escape display title, replace date/time placeholders in content,
                 # and handle inline links/images within callout text.
-                callout_content = render_inline_links(self._apply_dt(block[block_key]))
+                callout_content = render_inline_links(
+                    self._apply_dt(block[block_key]),
+                    site=self.site,
+                    current_page=self.page
+                )
                 return (
                     f'<div class="callout callout-{callout_type}">'
                     f"<strong>{_escape(display_title)}</strong> {callout_content}</div>"
@@ -348,7 +407,11 @@ class HTMLRenderer(BaseRenderer):
                     # Extract content after the marker.
                     extracted_content = paragraph_text[len(marker_upper):].strip()
                     display_title = callout_type.capitalize()
-                    callout_content = render_inline_links(self._apply_dt(extracted_content))
+                    callout_content = render_inline_links(
+                        self._apply_dt(extracted_content),
+                        site=self.site,
+                        current_page=self.page
+                    )
                     return (
                         f'<div class="callout callout-{callout_type}">'
                         f"<strong>{_escape(display_title)}</strong> {callout_content}</div>"
@@ -396,7 +459,11 @@ class HTMLRenderer(BaseRenderer):
             for row_data in table_rows:
                 body_html += "<tr>"
                 for cell_content in row_data:
-                    rendered_cell = render_inline_links(self._apply_dt(cell_content))
+                    rendered_cell = render_inline_links(
+                        self._apply_dt(cell_content),
+                        site=self.site,
+                        current_page=self.page
+                    )
                     body_html += f"<td>{rendered_cell}</td>"
                 body_html += "</tr>"
             
@@ -444,7 +511,11 @@ class HTMLRenderer(BaseRenderer):
             # Handle plain string list items.
             if isinstance(item_data, str):
                 # Apply date/time placeholders, render inline links, and wrap in <li>.
-                processed_content = render_inline_links(self._apply_dt(item_data))
+                processed_content = render_inline_links(
+                    self._apply_dt(item_data),
+                    site=self.site,
+                    current_page=self.page
+                )
                 list_item_parts.append(f"<li>{processed_content}</li>")
             
             # Handle dictionary list items (can contain paragraphs and/or nested lists).
@@ -454,7 +525,11 @@ class HTMLRenderer(BaseRenderer):
                 
                 # If the item has a paragraph ('p') key, process its content.
                 if "p" in item_data:
-                    processed_paragraph = render_inline_links(self._apply_dt(item_data["p"]))
+                    processed_paragraph = render_inline_links(
+                        self._apply_dt(item_data["p"]),
+                        site=self.site,
+                        current_page=self.page
+                    )
                     item_content_html = processed_paragraph
                 
                 # Detect and recursively render nested unordered lists.
@@ -469,12 +544,20 @@ class HTMLRenderer(BaseRenderer):
                     list_item_parts.append(f"<li>{item_content_html}{nested_list_html}</li>")
                 else:
                     # Fallback for dictionaries without 'p' or nested lists (e.g., malformed).
-                    fallback_content = render_inline_links(self._apply_dt(str(item_data)))
+                    fallback_content = render_inline_links(
+                        self._apply_dt(str(item_data)),
+                        site=self.site,
+                        current_page=self.page
+                    )
                     list_item_parts.append(f"<li>{fallback_content}</li>")
             
             # Handle other types of list items (e.g., direct objects converted to string).
             else:
-                fallback_content = render_inline_links(self._apply_dt(str(item_data)))
+                fallback_content = render_inline_links(
+                    self._apply_dt(str(item_data)),
+                    site=self.site,
+                    current_page=self.page
+                )
                 list_item_parts.append(f"<li>{fallback_content}</li>")
         
         # Join all list item HTML strings and wrap them in the appropriate list tag.
@@ -490,10 +573,25 @@ class HTMLRenderer(BaseRenderer):
         modify_date: str | None = None,
         modify_time: str | None = None,
         version: str | None = None,
+        site: Any = None,
+        page: Any = None,
+        toc: str | None = None,
         **kwargs
     ) -> str:
         """Renders a list of Markdown block dictionaries into a complete HTML string."""
-        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
+        super().render_blocks(
+            blocks, 
+            title, 
+            description, 
+            creation_date, 
+            creation_time, 
+            modify_date=modify_date, 
+            modify_time=modify_time, 
+            version=version,
+            site=site,
+            page=page,
+            toc=toc
+        )
         return "\n".join(self.render_block(b) for b in blocks)
 
 
@@ -517,12 +615,26 @@ class GemtextRenderer(BaseRenderer):
         modify_date: str | None = None,
         modify_time: str | None = None,
         version: str | None = None,
+        site: Any = None,
+        page: Any = None,
+        toc: str | None = None,
         **kwargs
     ) -> str:
-        """Renders a list of Markdown block dictionaries into a Gemtext string."""
-        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
-
-
+        """Renders a list of Markdown block dictionaries into a complete Gemtext string."""
+        super().render_blocks(
+            blocks, 
+            title, 
+            description, 
+            creation_date, 
+            creation_time, 
+            modify_date=modify_date, 
+            modify_time=modify_time, 
+            version=version,
+            site=site,
+            page=page,
+            toc=toc,
+            **kwargs
+        )
         
         # Inner helper function to recursively render list items with appropriate Gemtext indentation.
         def _render_list(list_items, indent: int = 0, is_ordered: bool = False):
@@ -659,12 +771,28 @@ class GopherRenderer(BaseRenderer):
         modify_date: str | None = None,
         modify_time: str | None = None,
         version: str | None = None,
+        site: Any = None,
+        page: Any = None,
+        toc: str | None = None,
         host: str = "localhost",
         port: int = 70,
         **kwargs
     ) -> str:
         """Produces a simple, Gophermap-compliant text representation from Markdown blocks."""
-        super().render_blocks(blocks, title, description, creation_date, creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
+        super().render_blocks(
+            blocks, 
+            title, 
+            description, 
+            creation_date, 
+            creation_time, 
+            modify_date=modify_date, 
+            modify_time=modify_time, 
+            version=version,
+            site=site,
+            page=page,
+            toc=toc,
+            **kwargs
+        )
 
 
         gopher_lines: list[str] = []

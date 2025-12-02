@@ -22,7 +22,7 @@ from slate.frontmatter import (
 )
 from slate.loader import load_markdown, load_template
 from slate.navigation import build_navigation_context
-from slate.parse import parse_markdown_to_dicts
+from slate.parse import generate_toc, parse_markdown_to_dicts
 from slate.render import GemtextRenderer, GopherRenderer, HTMLRenderer
 
 if TYPE_CHECKING:
@@ -93,8 +93,20 @@ def render_html(blocks, args, creation_date, creation_time, title, main_parser, 
         version=version
     )
     
+    toc_html = generate_toc(blocks)
+    
     template = load_template(args.template)
-    html_result = template.render(content=content_html, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
+    html_result = template.render(
+        content=content_html, 
+        title=title, 
+        description=(args.description or ""), 
+        creation_date=creation_date, 
+        creation_time=creation_time, 
+        modify_date=modify_date, 
+        modify_time=modify_time, 
+        version=version,
+        toc=toc_html
+    )
     
     if source_path and args.template:
         abs_source = Path(source_path).resolve()
@@ -429,7 +441,7 @@ def _rebuild_page(
     title = page.title
     
     # Build navigation context
-    nav_context = build_navigation_context(site, category_name)
+    nav_context = build_navigation_context(site, category_name, page)
     
     # Get timestamps
     now = datetime.now()
@@ -464,6 +476,9 @@ def _rebuild_page(
     # Render HTML (only format supported for rebuild currently)
     html_renderer = HTMLRenderer()
     
+    # Generate TOC
+    toc_html = generate_toc(blocks)
+    
     # Build context with navigation
     context = {
         "title": title,
@@ -473,6 +488,7 @@ def _rebuild_page(
         "modify_date": modify_date,
         "modify_time": modify_time,
         "version": version,
+        "toc": toc_html,
         **nav_context
     }
     
@@ -485,7 +501,10 @@ def _rebuild_page(
         creation_time=creation_time,
         modify_date=modify_date,
         modify_time=modify_time,
-        version=version
+        version=version,
+        site=site,
+        page=page,
+        toc=toc_html
     )
     
     # Apply navigation variables to content
