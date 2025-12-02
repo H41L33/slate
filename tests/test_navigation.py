@@ -142,8 +142,9 @@ class TestNavigationGenerator:
         breadcrumbs = NavigationGenerator.generate_breadcrumbs("blog", site)
         
         assert 'class="breadcrumbs"' in breadcrumbs
-        assert '<a href="index.html">Home</a>' in breadcrumbs
-        assert '<span>My Blog</span>' in breadcrumbs
+        assert '<a href="/" class="breadcrumb-link">Home</a>' in breadcrumbs
+        assert '<a href="blog.html" class="breadcrumb-link">My Blog</a>' in breadcrumbs
+        assert '<span class="breadcrumb-separator">/</span>' in breadcrumbs
 
 
 class TestBuildNavigationContext:

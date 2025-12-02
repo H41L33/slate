@@ -23,15 +23,15 @@ class TestDynamicLinks(unittest.TestCase):
         self.assertEqual(render_inline_links(text), expected)
 
     def test_standard_link_untouched(self):
-        # Test standard link is not affected
+        # Test standard link is converted to html
         text = "[My Post](posts/post1.md)"
-        expected = '<a href="posts/post1.md" class="content-link">My Post</a>'
+        expected = '<a href="posts/post1.html" class="content-link">My Post</a>'
         self.assertEqual(render_inline_links(text), expected)
 
     def test_mixed_links(self):
         # Test mixed content
         text = "Check out [!MD-PAGE] [Post 1](p1.md) and [Post 2](p2.md)"
-        expected = 'Check out <a href="p1.html" class="content-link">Post 1</a> and <a href="p2.md" class="content-link">Post 2</a>'
+        expected = 'Check out <a href="p1.html" class="content-link">Post 1</a> and <a href="p2.html" class="content-link">Post 2</a>'
         self.assertEqual(render_inline_links(text), expected)
 
     def test_custom_token_extensibility(self):
