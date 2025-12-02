@@ -33,7 +33,7 @@ class NavigationGenerator:
         for cat_name, category in sorted(site.categories.items()):
             label = category.root_page.title
             href = f"{cat_name}.html"
-            links.append(f'<a href="{href}">{label}</a>')
+            links.append(f'<a href="{href}" class="content-nav_header">{label}</a>')
         
         return '\n'.join(links)
     
@@ -73,9 +73,9 @@ class NavigationGenerator:
                 date = page.frontmatter["date"]
                 # Format date (handle both datetime.date and string)
                 date_str = str(date) if hasattr(date, '__str__') else date
-                links.append(f'  <li><a href="{href}">{title}</a> <span class="date">({date_str})</span></li>')
+                links.append(f'  <li><a href="{href}" class="content-nav_category">{title}</a> <span class="date">({date_str})</span></li>')
             else:
-                links.append(f'  <li><a href="{href}">{title}</a></li>')
+                links.append(f'  <li><a href="{href}" class="content-nav_category">{title}</a></li>')
         
         return '<ul>\n' + '\n'.join(links) + '\n</ul>'
     
@@ -96,7 +96,7 @@ class NavigationGenerator:
             return ""
 
         # Start with Home
-        crumbs = [('<a href="/" class="breadcrumb-link">Home</a>', '/')]
+        crumbs = [('<a href="/" class="content-breadcrumb">Home</a>', '/')]
         
         # Add Category if present
         if page_category and page_category in site.categories:
@@ -133,7 +133,7 @@ class NavigationGenerator:
             # If we have the current page, we can calculate relative path?
             # No, let's just use the category name for now.
             
-            crumbs.append((f'<a href="{cat.root_page.output_path.name}" class="breadcrumb-link">{cat.root_page.title}</a>', cat.root_page.output_path.name))
+            crumbs.append((f'<a href="{cat.root_page.output_path.name}" class="content-breadcrumb">{cat.root_page.title}</a>', cat.root_page.output_path.name))
             
         # Add Current Page if it's not the category root
         if current_page:
@@ -145,7 +145,7 @@ class NavigationGenerator:
                  # For the current page, we might not want a link, or a link to self.
                  # User asked for "identical <a> tags".
                  # So we link to self.
-                 crumbs.append((f'<a href="{current_page.output_path.name}" class="breadcrumb-link current">{current_page.title}</a>', current_page.output_path.name))
+                 crumbs.append((f'<a href="{current_page.output_path.name}" class="content-breadcrumb current">{current_page.title}</a>', current_page.output_path.name))
 
         # Join with separator
         separator = ' <span class="breadcrumb-separator">/</span> '
