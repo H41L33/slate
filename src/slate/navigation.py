@@ -33,7 +33,7 @@ class NavigationGenerator:
         import os
         
         links = []
-        for cat_name, category in sorted(site.categories.items()):
+        for _cat_name, category in sorted(site.categories.items()):
             label = category.root_page.title
             
             # Calculate relative path if current_page is provided

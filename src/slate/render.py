@@ -163,9 +163,7 @@ def _external_link_handler(match: re.Match) -> str:
             href = f"gopher://{href}"
         elif href.endswith('.gemini'):
             href = f"gemini://{href}"
-        elif href.endswith('.eth'):
-             href = f"https://{href}"
-        elif href.startswith('www.'):
+        elif href.endswith('.eth') or href.startswith('www.'):
              href = f"https://{href}"
         # Otherwise leave it raw (e.g. "about.haileywelsh.me" might be intended as raw, 
         # but user asked for "www urls" to resolve. "about.haileywelsh.me" doesn't start with www.
