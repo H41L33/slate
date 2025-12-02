@@ -13,7 +13,7 @@ class NavigationGenerator:
     """Generates navigation HTML for templates."""
     
     @staticmethod
-    def generate_header_nav(site: Site) -> str:
+    def generate_header_nav(site: Site, current_page: Any = None) -> str:
         """Generate header navigation linking to all category root pages.
         
         This creates a simple list of links to each category root page.
@@ -21,6 +21,7 @@ class NavigationGenerator:
         
         Args:
             site: The Site object with categories
+            current_page: The current Page object (optional) for relative path calculation
             
         Returns:
             HTML string with navigation links
@@ -29,10 +30,26 @@ class NavigationGenerator:
             <a href="blog.html">Blog</a>
             <a href="projects.html">Projects</a>
         """
+        import os
+        
         links = []
         for cat_name, category in sorted(site.categories.items()):
             label = category.root_page.title
-            href = f"{cat_name}.html"
+            
+            # Calculate relative path if current_page is provided
+            if current_page:
+                # Get relative path from current page's directory to the category root page
+                # We need to go from current_page.output_path.parent to category.root_page.output_path
+                try:
+                    rel_path = os.path.relpath(category.root_page.output_path, current_page.output_path.parent)
+                    href = rel_path
+                except ValueError:
+                    # Fallback if paths are on different drives or something weird
+                    href = category.root_page.output_path.name
+            else:
+                # Fallback to simple filename (works for flat structure or root)
+                href = category.root_page.output_path.name
+                
             links.append(f'<a href="{href}" class="content-nav_header">{label}</a>')
         
         return '\n'.join(links)
@@ -175,7 +192,7 @@ def build_navigation_context(site: Site, current_category: str | None = None, cu
     nav_gen = NavigationGenerator()
     
     context = {
-        "nav_header": nav_gen.generate_header_nav(site),
+        "nav_header": nav_gen.generate_header_nav(site, current_page),
         "nav_category": "",
         "category_name": current_category or "",
         "breadcrumbs": nav_gen.generate_breadcrumbs(current_category, site, current_page),
