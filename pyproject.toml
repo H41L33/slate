@@ -1,6 +1,6 @@
 [project]
 name = "slate-md"
-version = "0.2.5"
+version = "0.2.6"
 description = "A lightweight Python CLI tool for converting Markdown to accessible static HTML pages, Gemtext, and Gophermaps."
 authors = [
     {name = "Hailey Welsh",email = "dev@haileywelsh.me"}

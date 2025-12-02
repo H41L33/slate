@@ -344,18 +344,50 @@ def handle_site_build(args, main_parser):
     # Nuclear option: Clean output directory if requested
     if getattr(args, 'clean', False):
         print("Cleaning output directory...")
-        # Be careful not to delete source if output == source
+        
+        # SAFETY CHECK 1: Do not clean if output is source
         if output_dir == source_dir:
             print("WARNING: Output directory is same as source. Skipping clean to avoid deleting source files.")
+            
+        # SAFETY CHECK 2: Do not clean if output is current working directory
+        elif output_dir.resolve() == Path.cwd().resolve():
+            print("ERROR: Cannot use --clean when output directory is the current working directory ('.').")
+            print("       This would delete your entire project!")
+            print("       Please specify a subdirectory for output (e.g. 'slate build -o dist --clean').")
+            sys.exit(1)
+            
+        # SAFETY CHECK 3: Do not clean if output contains critical project files
+        elif (output_dir / ".git").exists() or (output_dir / "pyproject.toml").exists() or (output_dir / "src").exists():
+            print(f"ERROR: Output directory '{output_dir}' appears to be a project root (contains .git, pyproject.toml, or src).")
+            print("       Refusing to clean to prevent data loss.")
+            sys.exit(1)
+            
         else:
+            # Safe to clean? Let's backup instead of delete to be sure.
+            import datetime
             import shutil
-            # Delete contents of output_dir but keep the dir itself
-            for item in output_dir.iterdir():
-                if item.is_file():
-                    item.unlink()
-                elif item.is_dir():
-                    shutil.rmtree(item)
-            print("Output directory cleaned.")
+            
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_dir = output_dir.parent / f"{output_dir.name}_backup_{timestamp}"
+            
+            if output_dir.exists() and any(output_dir.iterdir()):
+                print(f"Moving existing output to backup: {backup_dir}")
+                try:
+                    output_dir.rename(backup_dir)
+                    output_dir.mkdir()
+                except OSError as e:
+                    print(f"Warning: Failed to move output directory: {e}")
+                    print("Attempting to delete contents instead (fallback)...")
+                    # Only delete if we are SURE it's not root (checks above passed)
+                    for item in output_dir.iterdir():
+                        if item.is_file():
+                            item.unlink()
+                        elif item.is_dir():
+                            shutil.rmtree(item)
+            elif not output_dir.exists():
+                output_dir.mkdir(parents=True)
+                
+            print("Output directory cleaned (backed up/recreated).")
     
     try:
         site = discover_site(source_dir, output_dir, structure)
