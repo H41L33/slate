@@ -81,7 +81,7 @@ def test_render_nested_lists_html():
     
     # Assertions to check the structure and content of the generated HTML.
     # Expect a nested <ul> structure within the main <li>.
-    assert '<ul class=\'content-list\'>' in generated_html
+    assert '<ul class=\'content-ul\'>' in generated_html
     assert '<li>' in generated_html
     assert 'Child A1' in generated_html
     assert 'Parent A' in generated_html

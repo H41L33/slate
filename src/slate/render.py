@@ -145,6 +145,18 @@ def _button_handler(match: re.Match) -> str:
 CustomTokenRegistry.register("BUTTON", _button_handler)
 
 
+def _external_link_handler(match: re.Match) -> str:
+    """Handler for EXTERNAL token.
+    
+    Replaces [!EXTERNAL] [Label](Link) with <a href="Link" class="content-external">Label</a>
+    """
+    label = _escape(match.group("label"))
+    href = _escape(match.group("href"))
+    return f'<a href="{href}" class="content-external">{label}</a>'
+
+CustomTokenRegistry.register("EXTERNAL", _external_link_handler)
+
+
 def _custom_token_replace(match: re.Match) -> str:
     """Dispatcher for custom tokens."""
     token = match.group("token")
@@ -240,7 +252,7 @@ def render_inline_links(text: str, site: Any = None, current_page: Any = None) -
             if resolved_href.lower().endswith(".md"):
                  resolved_href = resolved_href[:-3] + ".html"
             
-            return f'<a href="{_escape(resolved_href)}" class="content-link">{label}</a>'
+            return f'<a href="{_escape(resolved_href)}" class="content-md_page">{label}</a>'
         else:
             # Delegate to registry for other tokens
             return _custom_token_replace(match)
@@ -266,7 +278,7 @@ def render_inline_links(text: str, site: Any = None, current_page: Any = None) -
     text = LINK_RE.sub(link_replacer, text)
     
     # Finally, replace all inline code (backticks) with HTML <code> tags.
-    text = INLINE_CODE_RE.sub(lambda m: f'<code>{html.escape(m.group(1))}</code>', text)
+    text = INLINE_CODE_RE.sub(lambda m: f'<code class="content-code">{html.escape(m.group(1))}</code>', text)
     return text
 
 
@@ -423,7 +435,7 @@ class HTMLRenderer(BaseRenderer):
                     current_page=self.page
                 )
                 return (
-                    f'<div class="callout callout-{callout_type}">'
+                    f'<div class="content-callout callout-{callout_type}">'
                     f"<strong>{_escape(display_title)}</strong> {callout_content}</div>"
                 )
 
@@ -446,7 +458,7 @@ class HTMLRenderer(BaseRenderer):
                         current_page=self.page
                     )
                     return (
-                        f'<div class="callout callout-{callout_type}">'
+                        f'<div class="content-callout callout-{callout_type}">'
                         f"<strong>{_escape(display_title)}</strong> {callout_content}</div>"
                     )
 
@@ -594,7 +606,9 @@ class HTMLRenderer(BaseRenderer):
                 list_item_parts.append(f"<li>{fallback_content}</li>")
         
         # Join all list item HTML strings and wrap them in the appropriate list tag.
-        return f"<{list_html_tag} class='content-list'>{''.join(list_item_parts)}</{list_html_tag}>"
+        # Join all list item HTML strings and wrap them in the appropriate list tag.
+        css_class = f"content-{list_html_tag}"
+        return f"<{list_html_tag} class='{css_class}'>{''.join(list_item_parts)}</{list_html_tag}>"
 
     def render_blocks(
         self,

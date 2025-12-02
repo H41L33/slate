@@ -101,7 +101,7 @@ print("hi")
     assert "Sample Title" in generated_html
     assert "A paragraph with" in generated_html
     assert "<code" in generated_html or "<code>" in generated_html # Check for inline code rendering.
-    assert "content-list" in generated_html # Check for list rendering.
+    assert 'content-ul' in generated_html # Check for list rendering.
     assert "content-blockquote" in generated_html # Check for blockquote rendering.
 
     # --- Test Gemini Output ---

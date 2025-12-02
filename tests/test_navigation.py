@@ -42,8 +42,8 @@ class TestNavigationGenerator:
         
         nav_html = NavigationGenerator.generate_header_nav(site)
         
-        assert '<a href="blog.html">My Blog</a>' in nav_html
-        assert '<a href="projects.html">Projects</a>' in nav_html
+        assert '<a href="blog.html" class="content-nav_header">My Blog</a>' in nav_html
+        assert '<a href="projects.html" class="content-nav_header">Projects</a>' in nav_html
     
     def test_generate_category_nav_with_pages(self):
         """Test category navigation with regular pages."""
@@ -69,8 +69,8 @@ class TestNavigationGenerator:
         nav_html = NavigationGenerator.generate_category_nav(category)
         
         assert '<ul>' in nav_html
-        assert '<a href="post1.html">First Post</a>' in nav_html
-        assert '<a href="post2.html">Second Post</a>' in nav_html
+        assert '<a href="post1.html" class="content-nav_category">First Post</a>' in nav_html
+        assert '<a href="post2.html" class="content-nav_category">Second Post</a>' in nav_html
         assert '</ul>' in nav_html
     
     def test_generate_category_nav_with_blog_posts(self):
@@ -142,8 +142,8 @@ class TestNavigationGenerator:
         breadcrumbs = NavigationGenerator.generate_breadcrumbs("blog", site)
         
         assert 'class="breadcrumbs"' in breadcrumbs
-        assert '<a href="/" class="breadcrumb-link">Home</a>' in breadcrumbs
-        assert '<a href="blog.html" class="breadcrumb-link">My Blog</a>' in breadcrumbs
+        assert '<a href="/" class="content-breadcrumb">Home</a>' in breadcrumbs
+        assert '<a href="blog.html" class="content-breadcrumb">My Blog</a>' in breadcrumbs
         assert '<span class="breadcrumb-separator">/</span>' in breadcrumbs
 
 
