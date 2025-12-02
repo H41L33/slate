@@ -67,7 +67,7 @@ class Site:
     orphaned_pages: list[Page] = field(default_factory=list)  # Pages not in any category
 
 
-def discover_site(root_path: Path) -> Site:
+def discover_site(root_path: Path, output_path: Path | None = None, structure: str = "flat") -> Site:
     """Discover site structure starting from root_path.
     
     Algorithm:
@@ -78,7 +78,9 @@ def discover_site(root_path: Path) -> Site:
     5. Build Site object with full structure
     
     Args:
-        root_path: Root directory containing index.md
+        root_path: Root directory containing index.md (source)
+        output_path: Root directory for output files (default: same as root_path)
+        structure: Output structure ("flat" or "tree")
         
     Returns:
         Site object representing the discovered structure
@@ -88,6 +90,7 @@ def discover_site(root_path: Path) -> Site:
         ValueError: If site structure is invalid
     """
     root_path = Path(root_path).resolve()
+    output_root = Path(output_path).resolve() if output_path else root_path
     
     # Step 1: Find and parse index.md
     index_path = root_path / "index.md"
@@ -106,7 +109,7 @@ def discover_site(root_path: Path) -> Site:
     
     index_page = Page(
         source_path=index_path,
-        output_path=root_path / "index.html",
+        output_path=output_root / "index.html",
         frontmatter=index_frontmatter,
         category=None,
         is_category_root=False,
@@ -133,7 +136,7 @@ def discover_site(root_path: Path) -> Site:
         if not isinstance(category_name, str):
             raise ValueError(f"Category name must be string, got: {category_name}")
         
-        category = _discover_category(root_path, category_name)
+        category = _discover_category(root_path, category_name, output_root, structure)
         site.categories[category_name] = category
     
     # Find orphaned pages (optional - for now we don't scan for them)
@@ -142,12 +145,14 @@ def discover_site(root_path: Path) -> Site:
     return site
 
 
-def _discover_category(root_path: Path, category_name: str) -> Category:
+def _discover_category(root_path: Path, category_name: str, output_root: Path, structure: str) -> Category:
     """Discover a single category's structure.
     
     Args:
-        root_path: Site root directory
+        root_path: Site root directory (source)
         category_name: Name of the category (e.g., "blog")
+        output_root: Root directory for output
+        structure: Output structure ("flat" or "tree")
         
     Returns:
         Category object with root page and all pages
@@ -173,9 +178,17 @@ def _discover_category(root_path: Path, category_name: str) -> Category:
             f"Invalid {category_name}.md frontmatter:\n" + "\n".join(errors)
         )
     
+    # Calculate output path based on structure
+    if structure == "tree":
+        # pages/category.html
+        output_path = output_root / "pages" / f"{category_name}.html"
+    else:
+        # category.html
+        output_path = output_root / f"{category_name}.html"
+
     root_page = Page(
         source_path=root_page_path,
-        output_path=root_path / f"{category_name}.html",
+        output_path=output_path,
         frontmatter=root_frontmatter,
         category=category_name,
         is_category_root=True,
@@ -192,19 +205,21 @@ def _discover_category(root_path: Path, category_name: str) -> Category:
     category_dir = root_path / category_name
     if category_dir.exists() and category_dir.is_dir():
         for md_file in category_dir.glob("*.md"):
-            page = _parse_page(md_file, category_name, root_path)
+            page = _parse_page(md_file, category_name, root_path, output_root, structure)
             category.pages.append(page)
     
     return category
 
 
-def _parse_page(md_path: Path, category_name: str, root_path: Path) -> Page:
+def _parse_page(md_path: Path, category_name: str, root_path: Path, output_root: Path, structure: str) -> Page:
     """Parse a single Markdown file into a Page object.
     
     Args:
         md_path: Path to the .md file
         category_name: Category this page belongs to
-        root_path: Site root directory
+        root_path: Site root directory (source)
+        output_root: Root directory for output
+        structure: Output structure ("flat" or "tree")
         
     Returns:
         Page object
@@ -226,9 +241,16 @@ def _parse_page(md_path: Path, category_name: str, root_path: Path) -> Page:
             f"doesn't match directory category '{category_name}'"
         )
     
-    # Build output path: {category}/{page}.html
+    # Build output path
     relative_path = md_path.relative_to(root_path)
-    output_path = root_path / relative_path.parent / (md_path.stem + ".html")
+    
+    if structure == "tree":
+        # pages/category/page.html
+        # We prepend "pages/" to the relative path
+        output_path = output_root / "pages" / relative_path.with_suffix(".html")
+    else:
+        # category/page.html (mirrors source)
+        output_path = output_root / relative_path.with_suffix(".html")
     
     return Page(
         source_path=md_path,
