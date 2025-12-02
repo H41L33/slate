@@ -1,6 +1,4 @@
----
-description: Run CI checks locally (Ruff, MyPy, Pytest)
----
+# Slate: Pre-commit Workflow
 
 This workflow runs the same checks as the CI pipeline to ensure code quality before committing.
 

@@ -46,11 +46,17 @@ slate update OUTPUT_FILE [INPUT_FILE] [-T TEMPLATE] [-d DESCRIPTION]
 Rebuild entire multi-page site.
 
 ```bash
-slate rebuild
+slate rebuild [-s SOURCE] [-o OUTPUT] [-T TEMPLATES] [--structure {flat,tree}]
 ```
 
+**Arguments:**
+- `-s, --source` - Source directory containing Markdown files (default: current dir)
+- `-o, --output` - Output directory for HTML files (default: same as source)
+- `-T, --templates` - Directory containing templates (optional)
+- `--structure` - Output structure: `flat` (mirror source) or `tree` (professional) (default: flat)
+
 **Behavior:**
-- Discovers site structure from `index.md` in current directory
+- Discovers site structure from `index.md` in source directory
 - Builds all pages with navigation
 - Generates RSS feeds for blog categories
 - Requires YAML frontmatter in source files
@@ -98,6 +104,19 @@ site-root/
 └── cat2/
     └── page3.md
 ```
+
+### Output Structures
+
+**Flat (Default):** Mirrors source structure.
+- `index.md` -> `index.html`
+- `cat1.md` -> `cat1.html`
+- `cat1/page1.md` -> `cat1/page1.html`
+
+**Tree (`--structure tree`):** Professional structure.
+- `index.md` -> `index.html`
+- `cat1.md` -> `pages/cat1.html`
+- `cat1/page1.md` -> `pages/cat1/page1.html`
+- RSS: `pages/cat1/feed.xml`
 
 **Discovery Algorithm:**
 1. Read `index.md` frontmatter for `categories` list

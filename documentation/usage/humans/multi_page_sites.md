@@ -249,6 +249,48 @@ Want to work on a post without publishing it?
 - Keep it outside the `blog/` folder
 - Remove it from the folder before running `slate rebuild`
 
+## Advanced: Site Structure & Configuration (v0.2.1+)
+
+For professional sites, you often want to keep your source files separate from your built HTML files, and have a clean URL structure.
+
+### Configurable Directories
+
+You can specify separate directories for your source, output, and templates:
+
+```bash
+slate rebuild --source content/ --output dist/ --templates templates/
+```
+
+- **Source:** Where your Markdown files live (`index.md`, `blog/`, etc.)
+- **Output:** Where HTML files will be generated
+- **Templates:** Where Slate looks for templates
+
+### Professional "Tree" Structure
+
+By default, Slate mirrors your source directory structure ("flat" mode). You can switch to a "tree" structure for a cleaner organization:
+
+```bash
+slate rebuild --structure tree
+```
+
+**What this does:**
+- `index.md` -> `index.html` (Root)
+- All other pages -> `pages/` directory
+
+**Example Output:**
+```
+dist/
+├── index.html            ← Home page
+├── pages/
+│   ├── blog.html         ← Blog root
+│   ├── blog/
+│   │   ├── post1.html
+│   │   └── feed.xml
+│   └── projects.html
+```
+
+This keeps your root directory clean and organizes all content pages under `pages/`.
+
 ## Next Steps
 
 - **Customize your template:** See [Template Customization](template_guide.md)

@@ -13,6 +13,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from slate.frontmatter import (
     extract_frontmatter,
@@ -23,6 +24,9 @@ from slate.loader import load_markdown, load_template
 from slate.navigation import build_navigation_context
 from slate.parse import parse_markdown_to_dicts
 from slate.render import GemtextRenderer, GopherRenderer, HTMLRenderer
+
+if TYPE_CHECKING:
+    from slate.site import Page, Site
 
 
 def get_title(blocks, override=None):
@@ -309,17 +313,24 @@ def handle_update(args, main_parser):
 def handle_rebuild(args, main_parser):
     """Handles the `rebuild` subcommand.
     
-    Discovers site structure from current directory and rebuilds all pages
+    Discovers site structure from source directory and rebuilds all pages
     with auto-generated navigation.
     """
     from slate.site import discover_site, validate_site_structure
     
-    root_path = Path.cwd()
+    source_dir = Path(args.source).resolve()
+    output_dir = Path(args.output).resolve() if args.output else source_dir
+    templates_dir = Path(args.templates).resolve() if args.templates else None
+    structure = args.structure
     
-    print(f"Discovering site structure in {root_path}...")
+    print(f"Discovering site structure in {source_dir}...")
+    print(f"Output directory: {output_dir}")
+    if templates_dir:
+        print(f"Templates directory: {templates_dir}")
+    print(f"Structure: {structure}")
     
     try:
-        site = discover_site(root_path)
+        site = discover_site(source_dir, output_dir, structure)
     except (FileNotFoundError, ValueError) as e:
         main_parser.error(str(e))
     
@@ -339,7 +350,7 @@ def handle_rebuild(args, main_parser):
     
     # Rebuild index page
     print("\nBuilding index.html...")
-    _rebuild_page(site.index_page, site, None, version, main_parser)
+    _rebuild_page(site.index_page, site, None, version, main_parser, templates_dir)
     
     # Rebuild each category
     for cat_name, category in site.categories.items():
@@ -347,12 +358,17 @@ def handle_rebuild(args, main_parser):
         
         # Rebuild category root page
         print(f"  Building {category.root_page.output_path.name}...")
-        _rebuild_page(category.root_page, site, cat_name, version, main_parser)
+        _rebuild_page(category.root_page, site, cat_name, version, main_parser, templates_dir)
         
         # Rebuild all pages in category
         for page in category.pages:
-            print(f"  Building {page.output_path.relative_to(root_path)}...")
-            _rebuild_page(page, site, cat_name, version, main_parser)
+            # Show relative path from output root for clarity
+            try:
+                rel_output = page.output_path.relative_to(output_dir)
+            except ValueError:
+                rel_output = page.output_path
+            print(f"  Building {rel_output}...")
+            _rebuild_page(page, site, cat_name, version, main_parser, templates_dir)
         
         # Generate RSS feed if category has blog posts
         if category.blog_posts:
@@ -366,7 +382,13 @@ def handle_rebuild(args, main_parser):
             feed_xml = generate_rss_feed(category, site_url, site_title, site_desc)
             
             # Write feed.xml to category directory
-            feed_path = root_path / cat_name / "feed.xml"
+            # Tree: pages/category/feed.xml
+            # Flat: category/feed.xml
+            if structure == "tree":
+                feed_path = output_dir / "pages" / cat_name / "feed.xml"
+            else:
+                feed_path = output_dir / cat_name / "feed.xml"
+                
             feed_path.parent.mkdir(parents=True, exist_ok=True)
             feed_path.write_text(feed_xml, encoding="utf-8")
             
@@ -375,7 +397,14 @@ def handle_rebuild(args, main_parser):
     print(f"\n✓ Site rebuild complete! Built {1 + len([p for cat in site.categories.values() for p in [cat.root_page] + cat.pages])} pages.")
 
 
-def _rebuild_page(page, site, category_name, version, main_parser):
+def _rebuild_page(
+    page: "Page",
+    site: "Site",
+    category_name: str | None,
+    version: str,
+    main_parser: argparse.ArgumentParser,
+    templates_dir: Path | None = None
+) -> None:
     """Helper to rebuild a single page.
     
     Args:
@@ -384,7 +413,10 @@ def _rebuild_page(page, site, category_name, version, main_parser):
         category_name: Category name (or None for index)
         version: Slate version string
         main_parser: Parser for error reporting
+        templates_dir: Optional directory to look for templates in
     """
+    from types import SimpleNamespace
+    
     # Parse frontmatter and content (already done during discovery, but stored in page)
     md_text = page.source_path.read_text(encoding='utf-8')
     from slate.frontmatter import extract_frontmatter
@@ -409,19 +441,25 @@ def _rebuild_page(page, site, category_name, version, main_parser):
     creation_time = modify_time
     
     # Get template from frontmatter or error
-    template_path = frontmatter.get("template")
-    if not template_path:
+    template_path_str = frontmatter.get("template")
+    if not template_path_str:
         print(f"  WARNING: No template specified for {page.source_path}, skipping HTML output")
         return
     
-    # Build args-like object for render functions
-    class RebuildArgs:
-        def __init__(self):
-            self.template = template_path
-            self.description = frontmatter.get("description", "")
-            self.output = str(page.output_path)
+    # Resolve template path
+    template_path = Path(template_path_str)
+    if templates_dir and not template_path.is_absolute():
+        # Try finding it in templates_dir
+        potential_path = templates_dir / template_path
+        if potential_path.exists():
+            template_path = potential_path
     
-    args = RebuildArgs()
+    # Build args-like object for render functions
+    args = SimpleNamespace(
+        template=str(template_path),
+        description=frontmatter.get("description", ""),
+        output=str(page.output_path)
+    )
     
     # Render HTML (only format supported for rebuild currently)
     html_renderer = HTMLRenderer()
@@ -474,7 +512,7 @@ def _rebuild_page(page, site, category_name, version, main_parser):
     
     # Write output
     page.output_path.parent.mkdir(parents=True, exist_ok=True)
-    save_text(final_html, page.output_path)
+    save_text(final_html, str(page.output_path))
 
 
 def main():
@@ -504,8 +542,12 @@ def main():
     parser_update.add_argument("-d", "--description", dest="description", help="Brief description of the page (metadata)")
     parser_update.set_defaults(func=handle_update) 
     
-    # Rebuild command (v0.2.0)
+    # Rebuild command (v0.2.1)
     parser_rebuild = subparsers.add_parser("rebuild", help="Rebuild entire site from index.md")
+    parser_rebuild.add_argument("-s", "--source", dest="source", default=".", help="Source directory containing Markdown files (default: current dir)")
+    parser_rebuild.add_argument("-o", "--output", dest="output", help="Output directory for HTML files (default: same as source)")
+    parser_rebuild.add_argument("-T", "--templates", dest="templates", help="Directory containing templates")
+    parser_rebuild.add_argument("--structure", dest="structure", choices=("flat", "tree"), default="flat", help="Output structure: flat (mirror source) or tree (professional)")
     parser_rebuild.set_defaults(func=handle_rebuild)
     
     # Map 'output' to 'output_file' for render functions which expect args.output
