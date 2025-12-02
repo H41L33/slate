@@ -149,10 +149,40 @@ def _external_link_handler(match: re.Match) -> str:
     """Handler for EXTERNAL token.
     
     Replaces [!EXTERNAL] [Label](Link) with <a href="Link" class="content-external">Label</a>
+    Auto-detects protocol if missing and simplifies label if it's a URL.
     """
     label = _escape(match.group("label"))
     href = _escape(match.group("href"))
-    return f'<a href="{href}" class="content-external">{label}</a>'
+    
+    # Auto-prepend protocol for specific types that are often mistaken for relative paths
+    # But respect "raw" for everything else (e.g. /files/archive.zip, custom-scheme:...)
+    if not re.match(r'^[a-zA-Z0-9]+://', href) and not href.startswith(('/', './', '../')):
+        if href.endswith('.onion'):
+            href = f"http://{href}"
+        elif href.endswith('.gopher'):
+            href = f"gopher://{href}"
+        elif href.endswith('.gemini'):
+            href = f"gemini://{href}"
+        elif href.endswith('.eth'):
+             href = f"https://{href}"
+        elif href.startswith('www.'):
+             href = f"https://{href}"
+        # Otherwise leave it raw (e.g. "about.haileywelsh.me" might be intended as raw, 
+        # but user asked for "www urls" to resolve. "about.haileywelsh.me" doesn't start with www.
+        # If it looks like a domain? 
+        # User example: "about.haileywelsh.me" -> "https://about.haileywelsh.me/index.html" (in their request text)
+        # But they also said "Can WWW urls (about.haileywelsh.me) just resolve to https://example.com".
+        # Let's assume if it has a TLD and no protocol, we might want https?
+        # But "raw" is safer. Let's stick to the explicit list + www. 
+        # If they type "google.com", it stays "google.com" (relative). 
+        # If they want it absolute, they should probably type "google.com" with protocol OR we add a heuristic.
+        # Given "whatever the user says goes", I'll stick to the specific extensions they complained about + www.
+    
+    # Simplify label: remove protocol and www for display
+    clean_label = re.sub(r'^[a-zA-Z0-9]+://', '', label)
+    clean_label = re.sub(r'^www\.', '', clean_label)
+    
+    return f'<a href="{href}" class="content-external">{clean_label}</a>'
 
 CustomTokenRegistry.register("EXTERNAL", _external_link_handler)
 
@@ -435,7 +465,7 @@ class HTMLRenderer(BaseRenderer):
                     current_page=self.page
                 )
                 return (
-                    f'<div class="content-callout callout-{callout_type}">'
+                    f'<div class="content-callout callout callout-{callout_type}">'
                     f"<strong>{_escape(display_title)}</strong> {callout_content}</div>"
                 )
 

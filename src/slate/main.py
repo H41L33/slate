@@ -157,11 +157,11 @@ def render_gopher(blocks, args, creation_date, creation_time, title, main_parser
     print(f"GOPHER output saved at: {args.output}")
 
 
-def handle_build(args, main_parser):
-    """Handles the `build` subcommand.
+def handle_page_build(args, main_parser):
+    """Handles the `page` subcommand (formerly `build`).
 
     Args:
-        args: The command-line arguments for the `build` subcommand.
+        args: The command-line arguments for the `page` subcommand.
         main_parser: The main argparse parser object for error handling.
     """
     # Load Markdown and extract frontmatter
@@ -322,8 +322,8 @@ def handle_update(args, main_parser):
 
 
 
-def handle_rebuild(args, main_parser):
-    """Handles the `rebuild` subcommand.
+def handle_site_build(args, main_parser):
+    """Handles the `build` subcommand (formerly `rebuild`).
     
     Discovers site structure from source directory and rebuilds all pages
     with auto-generated navigation.
@@ -340,6 +340,22 @@ def handle_rebuild(args, main_parser):
     if templates_dir:
         print(f"Templates directory: {templates_dir}")
     print(f"Structure: {structure}")
+    
+    # Nuclear option: Clean output directory if requested
+    if getattr(args, 'clean', False):
+        print("Cleaning output directory...")
+        # Be careful not to delete source if output == source
+        if output_dir == source_dir:
+            print("WARNING: Output directory is same as source. Skipping clean to avoid deleting source files.")
+        else:
+            import shutil
+            # Delete contents of output_dir but keep the dir itself
+            for item in output_dir.iterdir():
+                if item.is_file():
+                    item.unlink()
+                elif item.is_dir():
+                    shutil.rmtree(item)
+            print("Output directory cleaned.")
     
     try:
         site = discover_site(source_dir, output_dir, structure)
@@ -534,7 +550,46 @@ def _rebuild_page(
     save_text(final_html, str(page.output_path))
 
 
-def main():
+def handle_rerun_last(args, main_parser):
+    """Handles the `rebuild` subcommand (re-run last)."""
+    last_run_file = Path(".slate_last_run")
+    if not last_run_file.exists():
+        main_parser.error("No previous run found. Run 'slate build' or 'slate page' first.")
+    
+    try:
+        saved_args = json.loads(last_run_file.read_text())
+        cmd_args = saved_args.get("args", [])
+        print(f"Re-running: slate {' '.join(cmd_args)}")
+        
+        # We need to re-parse these arguments
+        # But we can't just call main() because of recursion/exit issues.
+        # Instead, we can parse them with a new parser or re-invoke the current one?
+        # Re-invoking via sys.argv is hacky.
+        # Let's just re-parse using the main_parser we have? 
+        # But main_parser expects 'command' as first arg.
+        
+        # Actually, the cleanest way is to just call main() with the new args?
+        # But main() creates a new parser.
+        # Let's refactor main to accept args list.
+        
+        # Or, we can just use subprocess? No, that's heavy.
+        
+        # Let's just re-parse.
+        # We need to strip the program name if present? No, parse_args takes a list.
+        # saved_args["args"] should be the list of arguments (e.g. ['build', '-s', '.'])
+        
+        # We need to handle the case where the user runs `slate rebuild`.
+        # We don't want to save `rebuild` as the last run.
+        
+        new_args = main_parser.parse_args(cmd_args)
+        if hasattr(new_args, 'func'):
+            new_args.func(new_args, main_parser)
+            
+    except Exception as e:
+        main_parser.error(f"Failed to re-run last command: {e}")
+
+
+def main(args_list=None):
     """Main entry point for the Slate command-line interface.
 
     This function sets up the argument parser, processes command-line arguments,
@@ -543,15 +598,15 @@ def main():
     main_parser = argparse.ArgumentParser(description="slate — Markdown to static formats (HTML/Gemini/Gopher)")
     subparsers = main_parser.add_subparsers(dest="command", required=True, help="Sub-command help")
 
-    # Build command
-    parser_build = subparsers.add_parser("build", help="Build a new file from a Markdown source")
-    parser_build.add_argument("input", help="Input markdown file")
-    parser_build.add_argument("output", help="Output path and filename (e.g. pages/post.html)")
-    parser_build.add_argument("-f", "--format", dest="format", choices=("html", "gopher", "gemini"), default="html", help="Output format: html (default), gopher, gemini")
-    parser_build.add_argument("-t", "--title", dest="title", help="Title override (instead of first H1 in the markdown)")
-    parser_build.add_argument("-d", "--description", dest="description", help="Brief description of the page (metadata)")
-    parser_build.add_argument("-T", "--template", dest="template", help="Jinja2 template path (required for HTML output)")
-    parser_build.set_defaults(func=handle_build) # Do not pass parser here, pass main_parser in actual call
+    # Page command (formerly build)
+    parser_page = subparsers.add_parser("page", help="Build a single page from a Markdown source")
+    parser_page.add_argument("input", help="Input markdown file")
+    parser_page.add_argument("output", help="Output path and filename (e.g. pages/post.html)")
+    parser_page.add_argument("-f", "--format", dest="format", choices=("html", "gopher", "gemini"), default="html", help="Output format: html (default), gopher, gemini")
+    parser_page.add_argument("-t", "--title", dest="title", help="Title override (instead of first H1 in the markdown)")
+    parser_page.add_argument("-d", "--description", dest="description", help="Brief description of the page (metadata)")
+    parser_page.add_argument("-T", "--template", dest="template", help="Jinja2 template path (required for HTML output)")
+    parser_page.set_defaults(func=handle_page_build)
 
     # Update command
     parser_update = subparsers.add_parser("update", help="Update an existing file from a Markdown source")
@@ -561,32 +616,40 @@ def main():
     parser_update.add_argument("-d", "--description", dest="description", help="Brief description of the page (metadata)")
     parser_update.set_defaults(func=handle_update) 
     
-    # Rebuild command (v0.2.1)
-    parser_rebuild = subparsers.add_parser("rebuild", help="Rebuild entire site from index.md")
-    parser_rebuild.add_argument("-s", "--source", dest="source", default=".", help="Source directory containing Markdown files (default: current dir)")
-    parser_rebuild.add_argument("-o", "--output", dest="output", help="Output directory for HTML files (default: same as source)")
-    parser_rebuild.add_argument("-T", "--templates", dest="templates", help="Directory containing templates")
-    parser_rebuild.add_argument("--structure", dest="structure", choices=("flat", "tree"), default="flat", help="Output structure: flat (mirror source) or tree (professional)")
-    parser_rebuild.set_defaults(func=handle_rebuild)
-    
-    # Map 'output' to 'output_file' for render functions which expect args.output
-    # We can do this by post-processing args or just ensuring render functions use a consistent attr.
-    # render functions use args.output. 
-    # Let's alias it in handle_update or change the arg name here.
-    # Changing arg name to 'output' in parser_update is cleaner.
-    # But the skeleton used 'output_file'. I will stick to 'output_file' in parser 
-    # and set 'output' in handle_update.
+    # Build command (formerly rebuild)
+    parser_build = subparsers.add_parser("build", help="Build entire site from index.md")
+    parser_build.add_argument("-s", "--source", dest="source", default=".", help="Source directory containing Markdown files (default: current dir)")
+    parser_build.add_argument("-o", "--output", dest="output", help="Output directory for HTML files (default: same as source)")
+    parser_build.add_argument("-T", "--templates", dest="templates", help="Directory containing templates")
+    parser_build.add_argument("--structure", dest="structure", choices=("flat", "tree"), default="flat", help="Output structure: flat (mirror source) or tree (professional)")
+    parser_build.add_argument("--clean", action="store_true", help="Clean output directory before building")
+    parser_build.set_defaults(func=handle_site_build)
 
+    # Rebuild command (rerun last)
+    parser_rebuild = subparsers.add_parser("rebuild", help="Re-run the last command with same arguments")
+    parser_rebuild.set_defaults(func=handle_rerun_last)
+    
     try:
-        args = main_parser.parse_args()
+        # Parse args
+        args = main_parser.parse_args(args_list)
         
+        # Save args if not rebuild/update? 
+        # User said: "slate rebuild is a short-hand command to essentially re-run slate-build with the last used flags"
+        # So we should save on 'build' and 'page'. Maybe 'update'?
+        # Let's save on everything except 'rebuild'.
+        if args.command != 'rebuild':
+            try:
+                # We need the raw arguments list to save, not the parsed namespace.
+                # sys.argv[1:] gives us that.
+                # If args_list was passed (e.g. from test), use that.
+                raw_args = args_list if args_list is not None else sys.argv[1:]
+                Path(".slate_last_run").write_text(json.dumps({"args": raw_args}))
+            except Exception as e:
+                print(f"Warning: Failed to save run state: {e}", file=sys.stderr)
+
         # Normalize args for update command to match build command expectations
         if args.command == 'update':
             args.output = args.output_file
-            # args.input is expected by some? No, load_markdown takes args.input in handle_build, 
-            # but handle_update calls load_markdown(args.input_file).
-            # So we are good on input.
-            # But render functions use args.output.
             
         if hasattr(args, 'func'):
             args.func(args, main_parser)

@@ -72,7 +72,7 @@ def test_html_output(tmp_path):
     write_file(template_file_path, html_template_content)
 
     # Run the CLI tool to generate HTML output.
-    run_main_with_args(["build", str(md_file_path), str(output_html_path), "-T", str(template_file_path), "-f", "html"])
+    run_main_with_args(["page", str(md_file_path), str(output_html_path), "-T", str(template_file_path), "-f", "html"])
 
     # Assertions to check the generated HTML file.
     assert output_html_path.exists(), f"Expected output file created at {output_html_path}"
@@ -93,7 +93,7 @@ def test_gemini_output(tmp_path):
     write_file(md_file_path, markdown_content)
 
     # Run the CLI tool to generate Gemtext output.
-    run_main_with_args(["build", str(md_file_path), str(output_gemini_path), "-f", "gemini"])
+    run_main_with_args(["page", str(md_file_path), str(output_gemini_path), "-f", "gemini"])
 
     # Assertions to check the generated Gemtext file.
     assert output_gemini_path.exists()
@@ -114,7 +114,7 @@ def test_gopher_output(tmp_path):
     write_file(md_file_path, markdown_content)
 
     # Run the CLI tool to generate Gophermap output.
-    run_main_with_args(["build", str(md_file_path), str(output_gopher_path), "-f", "gopher"])
+    run_main_with_args(["page", str(md_file_path), str(output_gopher_path), "-f", "gopher"])
 
     # Assertions to check the generated Gophermap file.
     assert output_gopher_path.exists()

@@ -93,7 +93,7 @@ print("hi")
 
     # --- Test HTML Output ---
     # Run the CLI tool to generate HTML output.
-    run_main_with_args(["build", str(md_input_path), str(output_html_path), "-T", str(html_template_path), "-f", "html"])
+    run_main_with_args(["page", str(md_input_path), str(output_html_path), "-T", str(html_template_path), "-f", "html"])
     # Assert that the HTML output file was created.
     assert output_html_path.exists()
     # Read and verify content in the generated HTML.
@@ -106,7 +106,7 @@ print("hi")
 
     # --- Test Gemini Output ---
     # Run the CLI tool to generate Gemini (Gemtext) output.
-    run_main_with_args(["build", str(md_input_path), str(output_gemini_path), "-f", "gemini"])
+    run_main_with_args(["page", str(md_input_path), str(output_gemini_path), "-f", "gemini"])
     # Assert that the Gemini output file was created.
     assert output_gemini_path.exists()
     # Read and verify content in the generated Gemtext.
@@ -119,7 +119,7 @@ print("hi")
 
     # --- Test Gopher Output ---
     # Run the CLI tool to generate Gophermap output.
-    run_main_with_args(["build", str(md_input_path), str(output_gopher_path), "-f", "gopher"])
+    run_main_with_args(["page", str(md_input_path), str(output_gopher_path), "-f", "gopher"])
     # Assert that the Gopher output file was created.
     assert output_gopher_path.exists()
     # Read and verify content in the generated Gophermap.
@@ -164,7 +164,7 @@ Paragraph with {{creation_time}}.
 
     # --- Test HTML Output with Placeholders ---
     # --- Test HTML Output with Placeholders ---
-    run_main_with_args(["build", str(markdown_input_path), str(output_html_path), "-T", str(html_template_path), "-f", "html"])
+    run_main_with_args(["page", str(markdown_input_path), str(output_html_path), "-T", str(html_template_path), "-f", "html"])
     assert output_html_path.exists()
     generated_html_content = output_html_path.read_text(encoding="utf-8")
     # Verify that both date and time strings are present in the HTML output.
@@ -173,7 +173,7 @@ Paragraph with {{creation_time}}.
 
     # --- Test Gemini Output with Placeholders ---
     # --- Test Gemini Output with Placeholders ---
-    run_main_with_args(["build", str(markdown_input_path), str(output_gemini_path), "-f", "gemini"])
+    run_main_with_args(["page", str(markdown_input_path), str(output_gemini_path), "-f", "gemini"])
     assert output_gemini_path.exists()
     generated_gemini_content = output_gemini_path.read_text(encoding="utf-8")
     # Verify that date and time strings are correctly rendered in Gemtext headings and paragraphs.
@@ -182,7 +182,7 @@ Paragraph with {{creation_time}}.
 
     # --- Test Gopher Output with Placeholders ---
     # --- Test Gopher Output with Placeholders ---
-    run_main_with_args(["build", str(markdown_input_path), str(output_gopher_path), "-f", "gopher"])
+    run_main_with_args(["page", str(markdown_input_path), str(output_gopher_path), "-f", "gopher"])
     assert output_gopher_path.exists()
     generated_gopher_content = output_gopher_path.read_text(encoding="utf-8")
     # Verify that date and time strings are correctly rendered in Gophermap informational lines.
