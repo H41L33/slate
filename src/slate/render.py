@@ -170,25 +170,27 @@ def render_inline_links(text: str, site: Any = None, current_page: Any = None) -
     """
     # First, replace all image Markdown with HTML <figure> tags.
     text = IMAGE_RE.sub(_img_replace, text)
-    # Replace custom tokens using the registry
-    text = CUSTOM_TOKEN_RE.sub(_custom_token_replace, text)
-    
-    # Replace links with smart resolution
-    def link_replacer(match: re.Match) -> str:
-        label = _escape(match.group("label"))
-        href = match.group("href")
-        
-        # If it's an external link or anchor, leave it alone
-        if href.startswith(("http://", "https://", "#", "mailto:")):
-            return f'<a href="{_escape(href)}" class="content-link">{label}</a>'
+
+    # Helper for smart link resolution (used by MD-PAGE)
+    def resolve_smart_link(href: str) -> str:
+        if not (site and current_page):
+            return href
             
         # If it's a markdown file, try to resolve it
-        if href.endswith(".md") and site and current_page:
+        if href.endswith(".md"):
             # Try to find the target page in the site
-            # href is relative to current page source
+            # href is relative to current page source OR absolute from site root
             try:
-                # Resolve target source path
-                target_source = (current_page.source_path.parent / href).resolve()
+                target_source = None
+                if href.startswith("/"):
+                     # Absolute path from site root
+                     # Remove leading slash and resolve against site root
+                     # We don't have site root path easily accessible here directly if not passed?
+                     # Site object has root_path.
+                     target_source = (site.root_path / href.lstrip("/")).resolve()
+                else:
+                     # Relative path
+                     target_source = (current_page.source_path.parent / href).resolve()
                 
                 # Find page with this source path
                 target_page = None
@@ -212,20 +214,51 @@ def render_inline_links(text: str, site: Any = None, current_page: Any = None) -
                 
                 if target_page:
                     # Calculate relative path from current output to target output
-                    # We use os.path.relpath logic but with pathlib
-                    # relative_to requires one to be subpath of other, which isn't always true
-                    # so we use .. walking
-                    
                     import os
                     rel_path = os.path.relpath(target_page.output_path, current_page.output_path.parent)
-                    href = rel_path
+                    return rel_path
                 else:
                     # Fallback: just replace extension
-                    href = href[:-3] + ".html"
+                    return href[:-3] + ".html"
             except Exception:
                 # If resolution fails, fallback to simple replacement
-                href = href[:-3] + ".html"
-        elif href.endswith(".md"):
+                return href[:-3] + ".html"
+        return href
+
+    # Custom token replacer that handles MD-PAGE specifically with context
+    def custom_token_replacer_with_context(match: re.Match) -> str:
+        token = match.group("token")
+        if token == "MD-PAGE":
+            # Handle MD-PAGE with smart resolution
+            label = _escape(match.group("label"))
+            href = match.group("href")
+            
+            # Apply smart resolution
+            resolved_href = resolve_smart_link(href)
+            
+            # Ensure extension is .html if it was .md (resolve_smart_link handles this usually, but double check)
+            if resolved_href.lower().endswith(".md"):
+                 resolved_href = resolved_href[:-3] + ".html"
+            
+            return f'<a href="{_escape(resolved_href)}" class="content-link">{label}</a>'
+        else:
+            # Delegate to registry for other tokens
+            return _custom_token_replace(match)
+
+    # Replace custom tokens using the context-aware replacer
+    text = CUSTOM_TOKEN_RE.sub(custom_token_replacer_with_context, text)
+    
+    # Replace links with SIMPLE replacement (no smart resolution for standard links)
+    def link_replacer(match: re.Match) -> str:
+        label = _escape(match.group("label"))
+        href = match.group("href")
+        
+        # If it's an external link or anchor, leave it alone
+        if href.startswith(("http://", "https://", "#", "mailto:")):
+            return f'<a href="{_escape(href)}" class="content-link">{label}</a>'
+            
+        # Simple extension replacement for .md files
+        if href.lower().endswith(".md"):
              href = href[:-3] + ".html"
              
         return f'<a href="{_escape(href)}" class="content-link">{label}</a>'
