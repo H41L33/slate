@@ -160,10 +160,13 @@ class NavigationGenerator:
                     return target_path.name
             return target_path.name
 
-        # Start with Home
+        # Start with Home (Index)
         # Home is site.index_page
         home_href = get_rel_href(site.index_page.output_path)
-        crumbs = [(f'<a href="{home_href}" class="breadcrumb">Home</a>', home_href)]
+        home_label = site.index_page.title
+        crumbs = [
+            (f'<a href="{home_href}" class="breadcrumb">{home_label}</a>', home_href)
+        ]
 
         # Add Category if present
         if page_category and page_category in site.categories:

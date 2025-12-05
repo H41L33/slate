@@ -37,6 +37,7 @@
 - `tests/test_inline_code_regression.py`: Regression test for inline code spacing.
 - `tests/test_breadcrumbs_index.py`: Tests for breadcrumbs on index page.
 - `tests/test_nav_home_injection.py`: Tests for home link injection and nav ordering.
+- `tests/test_breadcrumbs_title.py`: Tests for breadcrumbs title usage.
 
 ## Root Directory
 

@@ -33,7 +33,9 @@ class TestNavigationGenerator:
 
         site = Site(
             root_path=Path("."),
-            index_page=Page(Path("index.md"), Path("index.html"), {}, None, False),
+            index_page=Page(
+                Path("index.md"), Path("index.html"), {"title": "Home"}, None, False
+            ),
             categories={
                 "blog": Category("blog", blog_page, []),
                 "projects": Category("projects", projects_page, []),
@@ -133,7 +135,9 @@ class TestNavigationGenerator:
         """Test breadcrumbs on index page (none shown)."""
         site = Site(
             root_path=Path("."),
-            index_page=Page(Path("index.md"), Path("index.html"), {}, None, False),
+            index_page=Page(
+                Path("index.md"), Path("index.html"), {"title": "Home"}, None, False
+            ),
             categories={},
         )
 
@@ -152,7 +156,9 @@ class TestNavigationGenerator:
 
         site = Site(
             root_path=Path("."),
-            index_page=Page(Path("index.md"), Path("index.html"), {}, None, False),
+            index_page=Page(
+                Path("index.md"), Path("index.html"), {"title": "Home"}, None, False
+            ),
             categories={"blog": Category("blog", blog_root, [])},
         )
 
@@ -171,7 +177,9 @@ class TestBuildNavigationContext:
         """Test building navigation context for index page."""
         site = Site(
             root_path=Path("."),
-            index_page=Page(Path("index.md"), Path("index.html"), {}, None, False),
+            index_page=Page(
+                Path("index.md"), Path("index.html"), {"title": "Home"}, None, False
+            ),
             categories={
                 "blog": Category(
                     "blog",
@@ -207,7 +215,9 @@ class TestBuildNavigationContext:
 
         site = Site(
             root_path=Path("."),
-            index_page=Page(Path("index.md"), Path("index.html"), {}, None, False),
+            index_page=Page(
+                Path("index.md"), Path("index.html"), {"title": "Home"}, None, False
+            ),
             categories={
                 "blog": Category(
                     "blog",
