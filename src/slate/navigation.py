@@ -274,28 +274,24 @@ class NavigationGenerator:
                     )
 
                     # Content path (raw markdown)
-                    # We assume the markdown file is copied to the output directory
-                    # or served from source. Slate usually copies static assets.
-                    # Actually, Slate doesn't copy raw MD by default unless configured.
-                    # But the user requested a link to download raw content.
-                    # Let's assume we link to the .md file relative to the output.
-                    # NOTE: Slate currently reads from source and writes to output.
-                    # It doesn't copy the .md file to output.
-                    # However, for this feature to work as requested ("download raw content"),
-                    # we might need to ensure .md files are available or link to source?
-                    # For now, let's generate a link to where the .md file WOULD be
-                    # if it were in the output directory.
-                    md_output_path = post.output_path.with_suffix(".md")
-                    content_href = os.path.relpath(
-                        md_output_path, current_page.output_path.parent
-                    )
+                    # Use source path relative to site root
+                    try:
+                        content_href = str(post.source_path.relative_to(site.root_path))
+                    except ValueError:
+                        content_href = post.source_path.name
 
                 except ValueError:
                     view_href = post.output_path.with_suffix(ext).name
-                    content_href = post.output_path.with_suffix(".md").name
+                    try:
+                        content_href = str(post.source_path.relative_to(site.root_path))
+                    except ValueError:
+                        content_href = post.source_path.name
             else:
                 view_href = post.output_path.name
-                content_href = post.output_path.with_suffix(".md").name
+                try:
+                    content_href = str(post.source_path.relative_to(site.root_path))
+                except ValueError:
+                    content_href = post.source_path.name
 
             dates.append(
                 str(post.frontmatter.get("date", ""))

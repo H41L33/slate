@@ -13,6 +13,7 @@ def mock_site():
     """Create a mock site with blog posts."""
     site = MagicMock(spec=Site)
     site.categories = {}
+    site.root_path = Path("/site/content")
 
     # Create blog category
     blog_cat = MagicMock(spec=Category)
@@ -27,6 +28,7 @@ def mock_site():
         "type": "blog-post",
     }
     post1.output_path = Path("/site/output/blog/post1.html")
+    post1.source_path = Path("/site/content/blog/post1.md")
     post1.is_blog_post = True
 
     post2 = MagicMock(spec=Page)
@@ -37,6 +39,7 @@ def mock_site():
         "type": "blog-post",
     }
     post2.output_path = Path("/site/output/blog/post2.html")
+    post2.source_path = Path("/site/content/blog/post2.md")
     post2.is_blog_post = True
 
     # Mock category.blog_posts to return sorted list (Site logic usually does this)

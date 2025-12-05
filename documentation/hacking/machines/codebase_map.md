@@ -39,6 +39,7 @@
 - `tests/test_nav_home_injection.py`: Tests for home link injection and nav ordering.
 - `tests/test_breadcrumbs_title.py`: Tests for breadcrumbs title usage.
 - `tests/test_creation_date_persistence.py`: Tests for creation date persistence.
+- `tests/test_blog_content_path.py`: Tests for blog content path resolution.
 
 ## Root Directory
 
