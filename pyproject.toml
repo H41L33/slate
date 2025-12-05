@@ -1,6 +1,6 @@
 [project]
 name = "slate-md"
-version = "0.2.6"
+version = "0.2.7"
 description = "A lightweight Python CLI tool for converting Markdown to accessible static HTML pages, Gemtext, and Gophermaps."
 authors = [
     {name = "Hailey Welsh",email = "dev@haileywelsh.me"}
@@ -12,6 +12,8 @@ dependencies = [
     "jinja2 (>=3.1.6,<4.0.0)",
     "beautifulsoup4 (>=4.14.2,<5.0.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
+    "rich (>=14.2.0,<15.0.0)",
+    "linkify-it-py (>=2.0.3,<3.0.0)",
 ]
 
 [tool.poetry]
@@ -30,6 +32,8 @@ dev = [
     "ruff (>=0.14.6,<0.15.0)",
     "mypy (>=1.18.2,<2.0.0)",
     "types-pyyaml (>=6.0.12.20250915,<7.0.0.0)",
+    "bandit (>=1.9.2,<2.0.0)",
+    "types-defusedxml (>=0.7.0.20250822,<0.8.0.0)",
 ]
 
 [tool.ruff]
@@ -124,6 +128,7 @@ known-first-party = ["my_project_name"]
 
 [tool.mypy]
 python_version = "3.14"
-ignore_missing_imports = true
+ignore_missing_imports = false
+check_untyped_defs = true
 warn_return_any = false
 warn_unreachable = false
