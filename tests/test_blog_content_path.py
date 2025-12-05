@@ -54,8 +54,7 @@ def test_blog_content_path_resolution():
     # For now, let's just assert it's NOT the output path structure if that's what they dislike.
     # They disliked: /html/pages/blog/the-ultimate-thinkpad.md (which looks like output structure)
 
-    # I'll assert that it matches the source path structure.
-    # If I change it to use source_path, it should be "blog/post.md" (relative to site root).
+    # User wants: /content/blog/post.md (source path relative to project root)
+    # Since root_path is /site/content, we expect the path to include content/ if we go up one level.
 
-    # Let's try to match "blog/post.md" first.
-    assert content_path == "blog/post.md"
+    assert content_path == "/content/blog/post.md"

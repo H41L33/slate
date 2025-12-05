@@ -72,7 +72,7 @@ def test_generate_blog_listing_variables_html(mock_site):
 
     # Check HTML links (relative to index.html)
     assert vars["blog_view"] == ["blog/post1.html", "blog/post2.html"]
-    assert vars["blog_content"] == ["blog/post1.md", "blog/post2.md"]
+    assert vars["blog_content"] == ["/content/blog/post1.md", "/content/blog/post2.md"]
 
 
 def test_generate_blog_listing_variables_gemini(mock_site):
@@ -87,7 +87,7 @@ def test_generate_blog_listing_variables_gemini(mock_site):
     # Check Gemtext links (.gmi extension)
     assert vars["blog_view"] == ["blog/post1.gmi", "blog/post2.gmi"]
     # Content links should still be .md
-    assert vars["blog_content"] == ["blog/post1.md", "blog/post2.md"]
+    assert vars["blog_content"] == ["/content/blog/post1.md", "/content/blog/post2.md"]
 
 
 def test_generate_blog_listing_variables_gopher(mock_site):
@@ -101,7 +101,7 @@ def test_generate_blog_listing_variables_gopher(mock_site):
 
     # Check Gopher links (.txt extension)
     assert vars["blog_view"] == ["blog/post1.txt", "blog/post2.txt"]
-    assert vars["blog_content"] == ["blog/post1.md", "blog/post2.md"]
+    assert vars["blog_content"] == ["/content/blog/post1.md", "/content/blog/post2.md"]
 
 
 def test_list_synchronization(mock_site):

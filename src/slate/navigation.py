@@ -274,22 +274,40 @@ class NavigationGenerator:
                     )
 
                     # Content path (raw markdown)
-                    # Use source path relative to site root
+                    # Use source path relative to project root (if site root is content/)
                     try:
-                        content_href = str(post.source_path.relative_to(site.root_path))
+                        if site.root_path.name == "content":
+                            base_path = site.root_path.parent
+                        else:
+                            base_path = site.root_path
+
+                        rel_path = post.source_path.relative_to(base_path)
+                        content_href = "/" + str(rel_path)
                     except ValueError:
                         content_href = post.source_path.name
 
                 except ValueError:
                     view_href = post.output_path.with_suffix(ext).name
                     try:
-                        content_href = str(post.source_path.relative_to(site.root_path))
+                        if site.root_path.name == "content":
+                            base_path = site.root_path.parent
+                        else:
+                            base_path = site.root_path
+
+                        rel_path = post.source_path.relative_to(base_path)
+                        content_href = "/" + str(rel_path)
                     except ValueError:
                         content_href = post.source_path.name
             else:
                 view_href = post.output_path.name
                 try:
-                    content_href = str(post.source_path.relative_to(site.root_path))
+                    if site.root_path.name == "content":
+                        base_path = site.root_path.parent
+                    else:
+                        base_path = site.root_path
+
+                    rel_path = post.source_path.relative_to(base_path)
+                    content_href = "/" + str(rel_path)
                 except ValueError:
                     content_href = post.source_path.name
 
