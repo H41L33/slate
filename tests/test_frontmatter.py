@@ -92,20 +92,20 @@ class TestValidateFrontmatter:
 
     def test_valid_blog_post(self):
         """Test valid blog post frontmatter."""
-        metadata = {"type": "blog", "date": "2024-12-01", "title": "My Post"}
+        metadata = {"type": "blog-post", "date": "2024-12-01", "title": "My Post"}
         errors = validate_frontmatter(metadata, "test.md")
         assert errors == []
 
     def test_blog_missing_date(self):
         """Test blog post missing required date."""
-        metadata = {"type": "blog", "title": "My Post"}
+        metadata = {"type": "blog-post", "title": "My Post"}
         errors = validate_frontmatter(metadata, "test.md")
         assert len(errors) == 1
         assert "require 'date'" in errors[0]
 
     def test_blog_missing_title(self):
         """Test blog post missing required title."""
-        metadata = {"type": "blog", "date": "2024-12-01"}
+        metadata = {"type": "blog-post", "date": "2024-12-01"}
         errors = validate_frontmatter(metadata, "test.md")
         assert len(errors) == 1
         assert "require 'title'" in errors[0]
@@ -113,7 +113,7 @@ class TestValidateFrontmatter:
     def test_invalid_date_format(self):
         """Test invalid date format."""
         metadata = {
-            "type": "blog",
+            "type": "blog-post",
             "date": "12-01-2024",  # Wrong format
             "title": "My Post",
         }

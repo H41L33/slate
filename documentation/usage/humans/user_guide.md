@@ -40,6 +40,40 @@ Slate is a static site generator designed for the modern (and retro) web. It sup
 -   `slate rebuild`: Re-run the last command.
 
 
+## Blog Posts
+
+To create a blog post, set the `type` in the frontmatter to `blog-post`. You must also provide a `date`.
+
+```yaml
+---
+title: My First Post
+date: 2024-12-05
+type: blog-post
+description: This is a description.
+---
+```
+
+### Blog Listing Variables
+
+Slate provides granular variables to list blog posts in your templates. These lists are synchronized (same index corresponds to the same post) and sorted by date (newest first).
+
+-   `{{ blog_title }}`: List of titles.
+-   `{{ blog_description }}`: List of descriptions.
+-   `{{ blog_view }}`: List of links to the post (format-aware: `.html`, `.gmi`, or `.txt`).
+-   `{{ blog_content }}`: List of links to the raw Markdown content.
+
+You can use the `zip` function to iterate over them together:
+
+```jinja2
+{% for title, desc, link, content in zip(blog_title, blog_description, blog_view, blog_content) %}
+<article>
+  <h2><a href="{{ link }}">{{ title }}</a></h2>
+  <p>{{ desc }}</p>
+  <a href="{{ content }}">Download Source</a>
+</article>
+{% endfor %}
+```
+
 ## Site Structure
 
 -   `index.md`: The entry point. Defines categories in frontmatter.

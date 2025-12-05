@@ -181,26 +181,124 @@ class NavigationGenerator:
 
         return f'<nav class="breadcrumbs">{html}</nav>'
 
+    @staticmethod
+    def generate_blog_listing_variables(
+        site: Site, current_page: Any = None, fmt: str = "html"
+    ) -> dict[str, list[str]]:
+        """Generate granular blog listing variables.
+
+        Returns four lists of strings, all sorted by date (newest first):
+        - blog_title: List of post titles
+        - blog_description: List of post descriptions
+        - blog_view: List of view URLs (format-specific)
+        - blog_content: List of raw Markdown URLs
+
+        Args:
+            site: The Site object
+            current_page: The current Page object (optional)
+            fmt: Output format ("html", "gemini", "gopher")
+
+        Returns:
+            Dictionary containing the four lists
+        """
+        import os
+
+        # Collect all blog posts from all categories
+        all_posts = []
+        for category in site.categories.values():
+            all_posts.extend(category.blog_posts)
+
+        # Sort by date (newest first)
+        # Note: Category.blog_posts is already sorted, but we merged multiple categories
+        all_posts.sort(
+            key=lambda p: p.frontmatter.get("date", "0000-00-00"), reverse=True
+        )
+
+        titles = []
+        descriptions = []
+        views = []
+        contents = []
+
+        for post in all_posts:
+            titles.append(post.title)
+            descriptions.append(post.frontmatter.get("description", ""))
+
+            # Calculate relative paths
+            if current_page:
+                try:
+                    # View path (format specific)
+                    # For HTML: relative path to .html
+                    # For Gemini/Gopher: relative path to .gmi/.txt
+                    # But Page.output_path is the absolute path to the output file
+                    # We need to respect the requested format extension
+
+                    # Determine extension based on format
+                    ext = ".html"
+                    if fmt in ("gemini", "gemtext"):
+                        ext = ".gmi"
+                    elif fmt in ("gopher", "gophermap"):
+                        ext = ".txt"
+
+                    # Get output path with correct extension
+                    # Page.output_path usually has the extension of the primary build format
+                    # But here we want the link to match the current build format
+                    target_path = post.output_path.with_suffix(ext)
+
+                    view_href = os.path.relpath(
+                        target_path, current_page.output_path.parent
+                    )
+
+                    # Content path (raw markdown)
+                    # We assume the markdown file is copied to the output directory
+                    # or served from source. Slate usually copies static assets.
+                    # Actually, Slate doesn't copy raw MD by default unless configured.
+                    # But the user requested a link to download raw content.
+                    # Let's assume we link to the .md file relative to the output.
+                    # NOTE: Slate currently reads from source and writes to output.
+                    # It doesn't copy the .md file to output.
+                    # However, for this feature to work as requested ("download raw content"),
+                    # we might need to ensure .md files are available or link to source?
+                    # For now, let's generate a link to where the .md file WOULD be
+                    # if it were in the output directory.
+                    md_output_path = post.output_path.with_suffix(".md")
+                    content_href = os.path.relpath(
+                        md_output_path, current_page.output_path.parent
+                    )
+
+                except ValueError:
+                    view_href = post.output_path.with_suffix(ext).name
+                    content_href = post.output_path.with_suffix(".md").name
+            else:
+                view_href = post.output_path.name
+                content_href = post.output_path.with_suffix(".md").name
+
+            views.append(view_href)
+            contents.append(content_href)
+
+        return {
+            "blog_title": titles,
+            "blog_description": descriptions,
+            "blog_view": views,
+            "blog_content": contents,
+        }
+
 
 def build_navigation_context(
-    site: Site, current_category: str | None = None, current_page: Any = None
+    site: Site,
+    current_category: str | None = None,
+    current_page: Any = None,
+    fmt: str = "html",
 ) -> dict[str, Any]:
     """Build navigation context dictionary for template rendering.
-
-    This creates a context dict with all navigation-related variables
-    that can be injected into templates.
 
     Args:
         site: The Site object
         current_category: Category of the current page (None for index)
         current_page: The current Page object (optional)
+        fmt: Output format ("html", "gemini", "gopher")
 
     Returns:
-        Dictionary with navigation variables:
-        - nav_header: Header navigation HTML
-        - nav_category: Category navigation HTML (if in a category)
-        - category_name: Name of current category (if in a category)
-        - breadcrumbs: Breadcrumb navigation HTML
+        Dictionary with navigation variables
     """
     nav_gen = NavigationGenerator()
 
@@ -212,6 +310,10 @@ def build_navigation_context(
             current_category, site, current_page
         ),
     }
+
+    # Add blog listing variables
+    blog_vars = nav_gen.generate_blog_listing_variables(site, current_page, fmt)
+    context.update(blog_vars)
 
     # Add category-specific navigation if in a category
     if current_category and current_category in site.categories:

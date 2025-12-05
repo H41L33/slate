@@ -17,6 +17,7 @@
 
 ## Tests (`tests/`)
 
+- `test_blog_listing.py`: Tests for granular blog listing variables.
 - `test_cli_args.py`: Tests for CLI argument parsing.
 - `test_dynamic_links.py`: Tests for dynamic link resolution.
 - `test_features.py`: Tests for specific Markdown features.
@@ -32,6 +33,7 @@
 - `test_site_discovery.py`: Tests for site structure discovery.
 - `test_structure.py`: Tests for output structure.
 - `test_tipping.py`: Tests for tipping feature.
+- `test_toc_scrolling.py`: Tests for TOC scrolling and heading IDs.
 
 ## Root Directory
 

@@ -87,7 +87,11 @@ class TestNavigationGenerator:
         post1 = Page(
             source_path=Path("blog/old.md"),
             output_path=Path("blog/old.html"),
-            frontmatter={"title": "Old Post", "type": "blog", "date": date(2024, 1, 1)},
+            frontmatter={
+                "title": "Old Post",
+                "type": "blog-post",
+                "date": date(2024, 1, 1),
+            },
             category="blog",
             is_category_root=False,
         )
@@ -97,7 +101,7 @@ class TestNavigationGenerator:
             output_path=Path("blog/new.html"),
             frontmatter={
                 "title": "New Post",
-                "type": "blog",
+                "type": "blog-post",
                 "date": date(2024, 12, 1),
             },
             category="blog",

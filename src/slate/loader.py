@@ -42,4 +42,5 @@ def load_template(template_path: str | Path) -> Template:
 
     # FileSystemLoader needs a string or Path object (Jinja2 supports Path)
     env = Environment(loader=FileSystemLoader(path.parent), autoescape=True)
+    env.globals.update(zip=zip)
     return env.get_template(path.name)

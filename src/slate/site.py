@@ -8,7 +8,7 @@ Site Structure Rules:
 - Each category requires {category}.md root page
 - Pages in {category}/ directory belong to that category
 - Strict 1:1 category membership
-- Blog posts (type: blog) require explicit date field
+- Blog posts (type: blog-post) require explicit date field
 """
 
 from dataclasses import dataclass, field
@@ -39,7 +39,7 @@ class Page:
     @property
     def is_blog_post(self) -> bool:
         """Check if this page is a blog post."""
-        return self.frontmatter.get("type") == "blog"
+        return self.frontmatter.get("type") == "blog-post"
 
 
 @dataclass

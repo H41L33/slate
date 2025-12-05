@@ -727,6 +727,10 @@ def _rebuild_page(
             "nav_category": Markup(nav_context.get("nav_category", "")),  # nosec B704
             "breadcrumbs": Markup(nav_context.get("breadcrumbs", "")),  # nosec B704
             "category_name": nav_context.get("category_name", ""),
+            "blog_title": nav_context.get("blog_title", []),
+            "blog_description": nav_context.get("blog_description", []),
+            "blog_view": nav_context.get("blog_view", []),
+            "blog_content": nav_context.get("blog_content", []),
         }
 
         content_html = html_renderer.render_blocks(
@@ -746,7 +750,8 @@ def _rebuild_page(
 
         # Replace navigation variables in content
         for var_name, var_value in nav_context.items():
-            content_html = content_html.replace(f"{{{{{var_name}}}}}", var_value)
+            if isinstance(var_value, str):
+                content_html = content_html.replace(f"{{{{{var_name}}}}}", var_value)
 
         try:
             template = load_template(args.template)

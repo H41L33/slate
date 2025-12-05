@@ -37,7 +37,7 @@ def ipfs_site_structure(tmp_path):
         encoding="utf-8",
     )
     (blog_dir / "post1.md").write_text(
-        "---\ntitle: Post 1\ndate: 2025-12-05 13:14\ntemplate: base.html\n---\n# Post 1\n\n[Back to Blog](index.md)\n[Home](../index.md)\n[Absolute Root](/index.md)",
+        "---\ntitle: Post 1\ntype: blog-post\ndate: 2025-12-05 13:14\ntemplate: base.html\n---\n# Post 1\n\n[Back to Blog](index.md)\n[Home](../index.md)\n[Absolute Root](/index.md)",
         encoding="utf-8",
     )
 

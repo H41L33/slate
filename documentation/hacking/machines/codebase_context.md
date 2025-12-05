@@ -9,6 +9,8 @@ Slate is a static site generator that supports multiple output formats: HTML, Ge
 3.  **Rendering (`render.py`)**: The block dictionaries are rendered into the target format using specific renderers (`HTMLRenderer`, `GemtextRenderer`, `GopherRenderer`).
 4.  **CLI (`main.py`)**: The CLI orchestrates the build process, handling arguments and invoking the discovery, parsing, and rendering steps.
 5.  **Link Resolution**: `render.py` contains `resolve_link`, a centralized function for handling relative links and format conversion (e.g., `.md` to `.html` or `.gmi`), crucial for IPFS compatibility.
+6.  **Blog Listing**: `navigation.py` generates granular blog variables (`blog_title`, `blog_description`, `blog_view`, `blog_content`) for flexible template rendering.
+7.  **TOC Generation**: `parse.py` generates the Table of Contents, and `render.py` ensures headings have unique IDs matching the TOC links.
 
 ## Key Libraries
 

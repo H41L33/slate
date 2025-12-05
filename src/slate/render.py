@@ -16,7 +16,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from slate.parse import render_footnotes, replace_footnote_refs
+from slate.parse import render_footnotes, replace_footnote_refs, slugify
 
 # Constants for supported HTML tags and callout types
 HEADINGS = ("h1", "h2", "h3", "h4", "h5", "h6")
@@ -599,6 +599,10 @@ VariableRegistry.register("nav_header", lambda c: c.get("nav_header", ""))
 VariableRegistry.register("nav_category", lambda c: c.get("nav_category", ""))
 VariableRegistry.register("category_name", lambda c: c.get("category_name", ""))
 VariableRegistry.register("breadcrumbs", lambda c: c.get("breadcrumbs", ""))
+VariableRegistry.register("blog_title", lambda c: c.get("blog_title", []))
+VariableRegistry.register("blog_description", lambda c: c.get("blog_description", []))
+VariableRegistry.register("blog_view", lambda c: c.get("blog_view", []))
+VariableRegistry.register("blog_content", lambda c: c.get("blog_content", []))
 
 # Content enhancement variables (v0.2.0)
 VariableRegistry.register("toc", lambda c: c.get("toc", ""))
@@ -697,8 +701,11 @@ class HTMLRenderer(BaseRenderer):
                 # Construct HTML class for styling (e.g., 'content-h1').
                 css_classes = f"content-{tag_name}"
                 # Escape content and replace date/time placeholders.
-                content = _escape(self._apply_dt(block[tag_name]))
-                return f"<{tag_name} class='{css_classes}'>{content}</{tag_name}>"
+                content_raw = self._apply_dt(block[tag_name])
+                content = _escape(content_raw)
+                # Generate slug for ID
+                slug = slugify(content_raw)
+                return f"<{tag_name} id='{slug}' class='{css_classes}'>{content}</{tag_name}>"
 
         # Render Paragraphs
         if "p" in block:
