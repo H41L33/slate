@@ -33,7 +33,28 @@ class NavigationGenerator:
         import os
 
         links = []
-        for _cat_name, category in sorted(site.categories.items()):
+
+        # Add Home (Index) link
+        index_page = site.index_page
+        index_label = index_page.title
+
+        if current_page:
+            try:
+                index_rel_path = os.path.relpath(
+                    index_page.output_path, current_page.output_path.parent
+                )
+                index_href = index_rel_path
+            except ValueError:
+                index_href = index_page.output_path.name
+        else:
+            index_href = index_page.output_path.name
+
+        links.append(
+            f'<a href="{index_href}" class="content-nav_header">{index_label}</a>'
+        )
+
+        # Add Category links (respect insertion order)
+        for _cat_name, category in site.categories.items():
             label = category.root_page.title
 
             # Calculate relative path if current_page is provided
