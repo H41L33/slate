@@ -414,30 +414,30 @@ def parse_list_at(tokens: list[Token], start_index: int) -> tuple[dict[str, Any]
             # Handle Task Lists (GFM)
             # The tasklists plugin adds 'class': 'task-list-item' to attrs
             # and inserts an html_inline token with the checkbox at the start of the inline token's children.
-            if current_token.attrs and "task-list-item" in current_token.attrs.get(
-                "class", ""
-            ):
-                is_checked = False
-                # Check the captured inline token for the checkbox HTML
-                if (
-                    inline_token_node
-                    and inline_token_node.children
-                    and inline_token_node.children[0].type == "html_inline"
-                    and 'type="checkbox"' in inline_token_node.children[0].content
-                ):
-                    first_child = inline_token_node.children[0]
+            if current_token.attrs:
+                class_value = current_token.attrs.get("class", "")
+                if isinstance(class_value, str) and "task-list-item" in class_value:
+                    is_checked = False
+                    # Check the captured inline token for the checkbox HTML
                     if (
-                        'checked="checked"' in first_child.content
-                        or "checked " in first_child.content
+                        inline_token_node
+                        and inline_token_node.children
+                        and inline_token_node.children[0].type == "html_inline"
+                        and 'type="checkbox"' in inline_token_node.children[0].content
                     ):
-                        is_checked = True
+                        first_child = inline_token_node.children[0]
+                        if (
+                            'checked="checked"' in first_child.content
+                            or "checked " in first_child.content
+                        ):
+                            is_checked = True
 
-                if isinstance(item_representation, str):
-                    item_representation = {"p": item_representation}
+                    if isinstance(item_representation, str):
+                        item_representation = {"p": item_representation}
 
-                if isinstance(item_representation, dict):
-                    item_representation["task"] = True
-                    item_representation["checked"] = is_checked
+                    if isinstance(item_representation, dict):
+                        item_representation["task"] = True
+                        item_representation["checked"] = is_checked
 
             items.append(item_representation)
             current_index = inner_index + 1

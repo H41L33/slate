@@ -19,7 +19,6 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from markupsafe import Markup
@@ -676,7 +675,7 @@ def _rebuild_page(
         return
 
     # Create a lightweight args object for the renderers
-    args = SimpleNamespace(
+    args = argparse.Namespace(
         template=str(template_path_str) if template_path_str else None,
         description=frontmatter.get("description", ""),
         output=str(final_output_path),
