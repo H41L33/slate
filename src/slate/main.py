@@ -671,6 +671,26 @@ def _rebuild_page(
         # Single format legacy: use page's pre-calculated output path
         final_output_path = page.output_path
 
+    # Try to recover creation date/time from existing file if not in clean mode
+    # This ensures creation date is persistent across builds unless explicitly cleaned
+    if final_output_path.exists() and fmt == "html":
+        try:
+            existing_content = final_output_path.read_text(encoding="utf-8")
+            # Look for the metadata comment at the end of the file
+            # Format: <!-- slate: {"...": "..."} -->
+            import re
+
+            match = re.search(r"<!-- slate: ({.*?}) -->", existing_content)
+            if match:
+                metadata = json.loads(match.group(1))
+                if "creation_date" in metadata:
+                    creation_date = metadata["creation_date"]
+                if "creation_time" in metadata:
+                    creation_time = metadata["creation_time"]
+        except Exception:
+            # If reading fails, just use the new values
+            pass
+
     template_path_str = frontmatter.get("template")
     if fmt == "html" and not template_path_str:
         return
