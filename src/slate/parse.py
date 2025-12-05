@@ -471,12 +471,48 @@ def generate_toc(blocks: list[dict[str, Any]]) -> str:
         return ""
 
     html_lines = ['<nav class="toc">', "  <ul>"]
+    current_level = (
+        1  # We start inside the first <ul> which represents level 1 (or base)
+    )
+
+    # Normalize levels if needed?
+    # If the first item is H2, we treat it as level 2.
+    # We maintain a stack of open levels?
+    # Actually, we just need to track current_level relative to item['level'].
 
     for item in toc_items:
-        level_class = f' class="toc-h{item["level"]}"' if item["level"] > 1 else ""
+        target_level = item["level"]
+
+        if target_level > current_level:
+            # Going deeper
+            while current_level < target_level:
+                # If the last line is a closed <li>, reopen it to nest the <ul>
+                if html_lines and html_lines[-1].endswith("</li>"):
+                    html_lines[-1] = html_lines[-1][:-5]  # Remove </li>
+                    html_lines.append("    <ul>")
+                else:
+                    # No previous li, or we are already in a ul.
+                    # Just open a new ul (this creates ul > ul which is invalid but renders)
+                    # To be strictly valid we would need a dummy li.
+                    html_lines.append("    <ul>")
+                current_level += 1
+
+        elif target_level < current_level:
+            # Going shallower
+            while current_level > target_level:
+                html_lines.append("    </ul></li>")
+                current_level -= 1
+
+        # Append the item
+        level_class = f' class="toc-h{item["level"]}"'
         html_lines.append(
             f'    <li{level_class}><a href="#{item["slug"]}">{item["text"]}</a></li>'
         )
+
+    # Close any remaining open levels
+    while current_level > 1:
+        html_lines.append("    </ul></li>")
+        current_level -= 1
 
     html_lines.extend(["  </ul>", "</nav>"])
 

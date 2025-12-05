@@ -40,6 +40,7 @@
 - `tests/test_breadcrumbs_title.py`: Tests for breadcrumbs title usage.
 - `tests/test_creation_date_persistence.py`: Tests for creation date persistence.
 - `tests/test_blog_content_path.py`: Tests for blog content path resolution.
+- `tests/test_toc_nesting.py`: Tests for nested TOC generation.
 
 ## Root Directory
 
