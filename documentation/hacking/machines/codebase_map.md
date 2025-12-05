@@ -33,7 +33,8 @@
 - `test_site_discovery.py`: Tests for site structure discovery.
 - `test_structure.py`: Tests for output structure.
 - `test_tipping.py`: Tests for tipping feature.
-- `test_toc_scrolling.py`: Tests for TOC scrolling and heading IDs.
+- `tests/test_toc_scrolling.py`: Tests for TOC scrolling and heading IDs.
+- `tests/test_inline_code_regression.py`: Regression test for inline code spacing.
 
 ## Root Directory
 

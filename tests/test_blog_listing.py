@@ -57,12 +57,14 @@ def test_generate_blog_listing_variables_html(mock_site):
 
     # Check keys
     assert "blog_title" in vars
+    assert "blog_date" in vars
     assert "blog_description" in vars
     assert "blog_view" in vars
     assert "blog_content" in vars
 
     # Check values and sorting (newest first)
     assert vars["blog_title"] == ["Newest Post", "Oldest Post"]
+    assert vars["blog_date"] == ["2025-01-01", "2024-01-01"]
     assert vars["blog_description"] == ["Desc 1", "Desc 2"]
 
     # Check HTML links (relative to index.html)
@@ -104,12 +106,14 @@ def test_list_synchronization(mock_site):
     vars = NavigationGenerator.generate_blog_listing_variables(mock_site)
 
     length = len(vars["blog_title"])
+    assert len(vars["blog_date"]) == length
     assert len(vars["blog_description"]) == length
     assert len(vars["blog_view"]) == length
     assert len(vars["blog_content"]) == length
 
     # Verify index 0 corresponds to same post across all lists
     assert vars["blog_title"][0] == "Newest Post"
+    assert vars["blog_date"][0] == "2025-01-01"
     assert vars["blog_description"][0] == "Desc 1"
     assert "post1" in vars["blog_view"][0]
     assert "post1" in vars["blog_content"][0]
@@ -123,6 +127,7 @@ def test_empty_site():
     vars = NavigationGenerator.generate_blog_listing_variables(site)
 
     assert vars["blog_title"] == []
+    assert vars["blog_date"] == []
     assert vars["blog_description"] == []
     assert vars["blog_view"] == []
     assert vars["blog_content"] == []

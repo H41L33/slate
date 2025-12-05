@@ -21,7 +21,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from bs4 import BeautifulSoup
 from markupsafe import Markup
 from rich.console import Console
 from rich.progress import (
@@ -94,23 +93,6 @@ def save_text(text: str, output_path: str) -> None:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-
-
-def prettify_html(html: str) -> str:
-    """Prettify HTML using BeautifulSoup.
-
-    Args:
-        html: The HTML string to prettify.
-
-    Returns:
-        Formatted HTML string with proper indentation.
-    """
-    try:
-        soup = BeautifulSoup(html, "html.parser")
-        return soup.prettify()
-    except Exception:
-        # If prettification fails, return original HTML
-        return html
 
 
 def render_html(
@@ -192,7 +174,6 @@ def render_html(
         html_result += f"\n<!-- slate: {json.dumps(metadata)} -->"
 
     # Prettify HTML before saving
-    html_result = prettify_html(html_result)
     save_text(html_result, args.output)
     console.print(
         f"[success]HTML output saved at:[/success] [path]{args.output}[/path]"
@@ -728,6 +709,7 @@ def _rebuild_page(
             "breadcrumbs": Markup(nav_context.get("breadcrumbs", "")),  # nosec B704
             "category_name": nav_context.get("category_name", ""),
             "blog_title": nav_context.get("blog_title", []),
+            "blog_date": nav_context.get("blog_date", []),
             "blog_description": nav_context.get("blog_description", []),
             "blog_view": nav_context.get("blog_view", []),
             "blog_content": nav_context.get("blog_content", []),
@@ -771,7 +753,6 @@ def _rebuild_page(
         final_html = final_html.rstrip() + "\n" + metadata_comment + "\n"
 
         # Prettify HTML before saving
-        final_html = prettify_html(final_html)
         final_output_path.parent.mkdir(parents=True, exist_ok=True)
         save_text(final_html, str(final_output_path))
 

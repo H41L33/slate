@@ -215,6 +215,7 @@ class NavigationGenerator:
         )
 
         titles = []
+        dates = []
         descriptions = []
         views = []
         contents = []
@@ -272,11 +273,16 @@ class NavigationGenerator:
                 view_href = post.output_path.name
                 content_href = post.output_path.with_suffix(".md").name
 
+            dates.append(
+                str(post.frontmatter.get("date", ""))
+            )  # Ensure string for template
+
             views.append(view_href)
             contents.append(content_href)
 
         return {
             "blog_title": titles,
+            "blog_date": dates,
             "blog_description": descriptions,
             "blog_view": views,
             "blog_content": contents,
