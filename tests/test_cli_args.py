@@ -5,7 +5,6 @@ output formats (HTML, Gemini, Gopher) are generated correctly based on
 the provided input and options.
 """
 
-
 import sys
 from pathlib import Path
 
@@ -67,15 +66,31 @@ def test_html_output(tmp_path):
     # Prepare Markdown input and a minimal HTML template.
     markdown_content = "# Title\\n\\nThis is a paragraph."
     write_file(md_file_path, markdown_content)
-    
-    html_template_content = "<html><head><title>{{ title }}</title></head><body>{{ content }}</body></html>"
+
+    html_template_content = (
+        "<html><head><title>{{ title }}</title></head><body>{{ content }}</body></html>"
+    )
     write_file(template_file_path, html_template_content)
 
     # Run the CLI tool to generate HTML output.
-    run_main_with_args(["page", str(md_file_path), str(output_html_path), "-T", str(template_file_path), "-f", "html"])
+    # Unified CLI: slate build input.md -o output.html -T template.html -f html
+    run_main_with_args(
+        [
+            "build",
+            str(md_file_path),
+            "-o",
+            str(output_html_path),
+            "--template",
+            str(template_file_path),
+            "-f",
+            "html",
+        ]
+    )
 
     # Assertions to check the generated HTML file.
-    assert output_html_path.exists(), f"Expected output file created at {output_html_path}"
+    assert output_html_path.exists(), (
+        f"Expected output file created at {output_html_path}"
+    )
     generated_html_content = output_html_path.read_text(encoding="utf-8")
     assert "Title" in generated_html_content
     assert "This is a paragraph." in generated_html_content
@@ -93,7 +108,9 @@ def test_gemini_output(tmp_path):
     write_file(md_file_path, markdown_content)
 
     # Run the CLI tool to generate Gemtext output.
-    run_main_with_args(["page", str(md_file_path), str(output_gemini_path), "-f", "gemini"])
+    run_main_with_args(
+        ["build", str(md_file_path), "-o", str(output_gemini_path), "-f", "gemini"]
+    )
 
     # Assertions to check the generated Gemtext file.
     assert output_gemini_path.exists()
@@ -114,10 +131,56 @@ def test_gopher_output(tmp_path):
     write_file(md_file_path, markdown_content)
 
     # Run the CLI tool to generate Gophermap output.
-    run_main_with_args(["page", str(md_file_path), str(output_gopher_path), "-f", "gopher"])
+    run_main_with_args(
+        ["build", str(md_file_path), "-o", str(output_gopher_path), "-f", "gopher"]
+    )
 
     # Assertions to check the generated Gophermap file.
     assert output_gopher_path.exists()
     generated_gopher_content = output_gopher_path.read_text(encoding="utf-8")
     assert "Gopher" in generated_gopher_content
     assert "A gopher paragraph." in generated_gopher_content
+
+
+def test_draft_command(tmp_path):
+    """Tests that the draft command creates a new site structure."""
+    site_name = "my-site"
+    site_path = tmp_path / site_name
+
+    run_main_with_args(["draft", str(site_path)])
+
+    assert site_path.exists()
+    assert (site_path / "content" / "index.md").exists()
+    assert (site_path / "templates" / "base.html").exists()
+    assert (site_path / "static" / "style.css").exists()
+
+
+def test_rebuild_command(tmp_path):
+    """Tests that the rebuild command re-runs the last command."""
+    # First run a command to populate slate.json
+    md_file_path = tmp_path / "rebuild.md"
+    output_path = tmp_path / "rebuild.html"
+    template_path = tmp_path / "template.html"
+
+    write_file(md_file_path, "# Rebuild")
+    write_file(template_path, "{{ content }}")
+
+    run_main_with_args(
+        [
+            "build",
+            str(md_file_path),
+            "-o",
+            str(output_path),
+            "--template",
+            str(template_path),
+        ]
+    )
+
+    assert output_path.exists()
+    output_path.unlink()  # Delete output to verify rebuild works
+    assert not output_path.exists()
+
+    # Run rebuild
+    run_main_with_args(["rebuild"])
+
+    assert output_path.exists()
