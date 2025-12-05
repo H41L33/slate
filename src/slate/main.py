@@ -1,19 +1,37 @@
 """
-This module provides the command-line interface (CLI) for the Slate tool,
-which converts Markdown files into various static formats like HTML, Gemtext,
-and Gophermap. It handles argument parsing, file loading, Markdown parsing,
-rendering, and saving the output.
-"""
+This module provides the command-line interface (CLI) for the Slate tool.
 
+Slate converts Markdown files into various static formats like HTML, Gemtext,
+and Gophermap. This module handles:
+- Argument parsing
+- File loading
+- Markdown parsing
+- Rendering dispatch
+- Output saving
+
+It serves as the entry point for the application.
+"""
 
 import argparse
 import importlib.metadata
 import json
-import re
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any
+
+from markupsafe import Markup
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+)
+from rich.theme import Theme
 
 from slate.frontmatter import (
     extract_frontmatter,
@@ -22,92 +40,129 @@ from slate.frontmatter import (
 )
 from slate.loader import load_markdown, load_template
 from slate.navigation import build_navigation_context
-from slate.parse import generate_toc, parse_markdown_to_dicts
+from slate.parse import generate_toc, parse_footnotes, parse_markdown_to_dicts
 from slate.render import GemtextRenderer, GopherRenderer, HTMLRenderer
 
 if TYPE_CHECKING:
     from slate.site import Page, Site
 
+# Setup Rich Console with a custom theme for better visibility
+custom_theme = Theme(
+    {
+        "info": "cyan",
+        "warning": "yellow",
+        "error": "bold red",
+        "success": "bold green",
+        "highlight": "magenta",
+        "path": "blue underline",
+    }
+)
+console = Console(theme=custom_theme, force_terminal=True)
 
-def get_title(blocks, override=None):
+
+def get_title(blocks: list[dict[str, Any]], override: str | None = None) -> str:
     """Determines the title of the document.
 
-    The title can be explicitly provided as an override. If no override is
-    given, it attempts to find the first H1 or H2 heading in the parsed
-    Markdown blocks to use as the title. If no heading is found, it defaults
-    to "Untitled".
+    Prioritizes the override title (from CLI or frontmatter), then looks for
+    the first H1 or H2 heading in the parsed blocks. Defaults to "Untitled".
 
     Args:
-        blocks: A list of parsed Markdown blocks (dictionaries).
-        override: An optional string to use as the title, overriding any
-                  title found in the Markdown content.
+        blocks: List of parsed Markdown blocks.
+        override: Optional title override.
 
     Returns:
-        A string representing the document's title.
+        The determined title string.
     """
     if override:
         return override
-    # Look for the first H1 or H2 heading in the document blocks to use as a title.
     for block in blocks:
         for heading_level in ("h1", "h2"):
             if heading_level in block:
                 return block[heading_level]
-    # If no suitable heading is found, use a default title.
     return "Untitled"
 
 
-def save_text(text: str, output_path: str):
-    """Saves the given text content to a specified output file."""
+def save_text(text: str, output_path: str) -> None:
+    """Saves the given text content to a specified output file.
+
+    Ensures parent directories exist before writing.
+
+    Args:
+        text: The content to save.
+        output_path: The destination file path.
+    """
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
 
 
-def render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=None, modify_date=None, modify_time=None):
-    """Renders and saves the HTML output.
+def render_html(
+    blocks: list[dict[str, Any]],
+    args: argparse.Namespace,
+    creation_date: str,
+    creation_time: str,
+    title: str,
+    main_parser: argparse.ArgumentParser,
+    version: str,
+    source_path: str | None = None,
+    modify_date: str | None = None,
+    modify_time: str | None = None,
+    footnotes: dict[str, str] | None = None,
+) -> None:
+    """Renders and saves the HTML output for a single page.
 
     Args:
         blocks: Parsed Markdown blocks.
-        args: Command-line arguments.
-        creation_date: Creation date string.
-        creation_time: Creation time string.
+        args: CLI arguments.
+        creation_date: Date string.
+        creation_time: Time string.
         title: Document title.
-        main_parser: The main argparse parser object for error handling.
-        source_path: The absolute path to the source markdown file (for metadata).
+        main_parser: The argument parser (unused but kept for signature consistency).
+        version: Slate version string.
+        source_path: Path to the source Markdown file.
+        modify_date: Modification date string.
+        modify_time: Modification time string.
+        footnotes: Dictionary of footnotes.
     """
     if not args.template:
-        main_parser.error("HTML output requires a Jinja2 template via -T/--template")
-    
-    # source_date removed in v0.1.6
-    pass
+        console.print(
+            "[error]HTML output requires a Jinja2 template via -T/--template[/error]"
+        )
+        sys.exit(1)
 
     html_renderer = HTMLRenderer()
+
+    # Render the content blocks to HTML
     content_html = html_renderer.render_blocks(
-        blocks, 
-        title=title, 
-        description=(args.description or ""), 
-        creation_date=creation_date, 
+        blocks,
+        title=title,
+        description=(args.description or ""),
+        creation_date=creation_date,
         creation_time=creation_time,
         modify_date=modify_date,
         modify_time=modify_time,
-        version=version
+        version=version,
+        footnotes=footnotes,
     )
-    
+
+    # Generate Table of Contents
     toc_html = generate_toc(blocks)
-    
+
+    # Load and render the Jinja2 template
     template = load_template(args.template)
     html_result = template.render(
-        content=content_html, 
-        title=title, 
-        description=(args.description or ""), 
-        creation_date=creation_date, 
-        creation_time=creation_time, 
-        modify_date=modify_date, 
-        modify_time=modify_time, 
+        content=Markup(content_html),  # nosec B704
+        title=title,
+        description=(args.description or ""),
+        creation_date=creation_date,
+        creation_time=creation_time,
+        modify_date=modify_date,
+        modify_time=modify_time,
         version=version,
-        toc=toc_html
+        toc=Markup(toc_html),  # nosec B704
     )
-    
+
+    # Append metadata comment if source path is provided (for debugging/tracking)
     if source_path and args.template:
         abs_source = Path(source_path).resolve()
         abs_template = Path(args.template).resolve()
@@ -115,86 +170,127 @@ def render_html(blocks, args, creation_date, creation_time, title, main_parser, 
             "source": str(abs_source),
             "template": str(abs_template),
             "creation_date": creation_date,
-            "creation_time": creation_time
+            "creation_time": creation_time,
         }
         html_result += f"\n<!-- slate: {json.dumps(metadata)} -->"
 
     save_text(html_result, args.output)
-    print(f"HTML output saved at: {args.output}")
+    console.print(
+        f"[success]HTML output saved at:[/success] [path]{args.output}[/path]"
+    )
 
 
-def render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=None, modify_time=None):
-    """Renders and saves the Gemtext output.
-
-    Args:
-        blocks: Parsed Markdown blocks.
-        args: Command-line arguments.
-        creation_date: Creation date string.
-        creation_time: Creation time string.
-        title: Document title.
-        main_parser: The main argparse parser object for error handling.
-    """
+def render_gemtext(
+    blocks: list[dict[str, Any]],
+    args: argparse.Namespace,
+    creation_date: str,
+    creation_time: str,
+    title: str,
+    main_parser: argparse.ArgumentParser,
+    version: str,
+    modify_date: str | None = None,
+    modify_time: str | None = None,
+    footnotes: dict[str, str] | None = None,
+    site: Any = None,
+    page: Any = None,
+) -> None:
+    """Renders and saves the Gemtext output for a single page."""
     gemtext_renderer = GemtextRenderer()
-    text_result = gemtext_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
+    text_result = gemtext_renderer.render_blocks(
+        blocks,
+        title=title,
+        description=(args.description or ""),
+        creation_date=creation_date,
+        creation_time=creation_time,
+        modify_date=modify_date,
+        modify_time=modify_time,
+        version=version,
+        footnotes=footnotes,
+        site=site,
+        page=page,
+    )
     save_text(text_result, args.output)
-    print(f"GEMINI output saved at: {args.output}")
+    console.print(
+        f"[success]GEMINI output saved at:[/success] [path]{args.output}[/path]"
+    )
 
 
-def render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=None, modify_time=None):
-    """Renders and saves the Gopher output.
-
-    Args:
-        blocks: Parsed Markdown blocks.
-        args: Command-line arguments.
-        creation_date: Creation date string.
-        creation_time: Creation time string.
-        title: Document title.
-        main_parser: The main argparse parser object for error handling.
-    """
+def render_gopher(
+    blocks: list[dict[str, Any]],
+    args: argparse.Namespace,
+    creation_date: str,
+    creation_time: str,
+    title: str,
+    main_parser: argparse.ArgumentParser,
+    version: str,
+    modify_date: str | None = None,
+    modify_time: str | None = None,
+    footnotes: dict[str, str] | None = None,
+    site: Any = None,
+    page: Any = None,
+) -> None:
+    """Renders and saves the Gopher output for a single page."""
     gopher_renderer = GopherRenderer()
-    text_result = gopher_renderer.render_blocks(blocks, title=title, description=(args.description or ""), creation_date=creation_date, creation_time=creation_time, modify_date=modify_date, modify_time=modify_time, version=version)
+    text_result = gopher_renderer.render_blocks(
+        blocks,
+        title=title,
+        description=(args.description or ""),
+        creation_date=creation_date,
+        creation_time=creation_time,
+        modify_date=modify_date,
+        modify_time=modify_time,
+        version=version,
+        footnotes=footnotes,
+        site=site,
+        page=page,
+    )
     save_text(text_result, args.output)
-    print(f"GOPHER output saved at: {args.output}")
+    console.print(
+        f"[success]GOPHER output saved at:[/success] [path]{args.output}[/path]"
+    )
 
 
-def handle_page_build(args, main_parser):
-    """Handles the `page` subcommand (formerly `build`).
+def handle_page_build(
+    args: argparse.Namespace, main_parser: argparse.ArgumentParser
+) -> None:
+    """Handles building a single page from a Markdown file.
 
-    Args:
-        args: The command-line arguments for the `page` subcommand.
-        main_parser: The main argparse parser object for error handling.
+    This function orchestrates the parsing, validation, and rendering of a single
+    Markdown file into the requested format(s).
     """
-    # Load Markdown and extract frontmatter
     md_text = load_markdown(args.input)
+
+    # Extract and process frontmatter and content
     frontmatter, content = extract_frontmatter(md_text)
-    
+    content, footnotes = parse_footnotes(content)
+
     # Validate frontmatter
     errors = validate_frontmatter(frontmatter, args.input)
     if errors:
         for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        main_parser.error("Frontmatter validation failed")
-    
-    # Merge frontmatter with CLI args (frontmatter takes precedence)
+            console.print(f"[error]{error}[/error]")
+        sys.exit(1)
+
+    # Merge CLI args with frontmatter (CLI takes precedence)
     cli_args_dict = {
         "title": args.title,
         "description": getattr(args, "description", None),
         "template": getattr(args, "template", None),
     }
     merged = merge_with_cli_args(frontmatter, cli_args_dict)
-    
-    # Update args with merged values
+
     if merged.get("title"):
         args.title = merged["title"]
     if merged.get("description"):
         args.description = merged["description"]
     if merged.get("template"):
         args.template = merged["template"]
-    
-    # Parse content (without frontmatter)
+
+    # Parse content into blocks
     blocks = parse_markdown_to_dicts(content)
     title = get_title(blocks, override=args.title)
 
+    # Set dates
     now = datetime.now()
     creation_date = now.strftime("%d/%m/%Y")
     creation_time = now.strftime("%H:%M")
@@ -206,255 +302,303 @@ def handle_page_build(args, main_parser):
     except importlib.metadata.PackageNotFoundError:
         version = "v0.0.0"
 
-    fmt = args.format.lower()
+    # Determine format: CLI arg > Frontmatter > Default (html)
+    fmt = args.format
+    if not fmt and "format" in frontmatter:
+        fmt = frontmatter["format"]
+    if not fmt:
+        fmt = "html"
+
+    fmt = fmt.lower()
+
+    # Dispatch to appropriate renderer
     if fmt == "html":
-        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input, modify_date=modify_date, modify_time=modify_time)
+        render_html(
+            blocks,
+            args,
+            creation_date,
+            creation_time,
+            title,
+            main_parser,
+            version,
+            source_path=args.input,
+            modify_date=modify_date,
+            modify_time=modify_time,
+            footnotes=footnotes,
+        )
     elif fmt == "gemini":
-        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
+        render_gemtext(
+            blocks,
+            args,
+            creation_date,
+            creation_time,
+            title,
+            main_parser,
+            version,
+            modify_date=modify_date,
+            modify_time=modify_time,
+            footnotes=footnotes,
+        )
     elif fmt == "gopher":
-        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
+        render_gopher(
+            blocks,
+            args,
+            creation_date,
+            creation_time,
+            title,
+            main_parser,
+            version,
+            modify_date=modify_date,
+            modify_time=modify_time,
+            footnotes=footnotes,
+        )
     else:
-        # This part should not be reachable due to `choices` in argparse
-        main_parser.error(f"Unsupported format: {fmt}")
+        console.print(f"[error]Unsupported format: {fmt}[/error]")
+        sys.exit(1)
 
 
-def handle_update(args, main_parser):
-    """Handles the `update` subcommand."""
-    output_path = Path(args.output_file)
-    if not output_path.exists():
-        main_parser.error(f"Output file '{args.output_file}' does not exist. Use 'build' to create a new file.")
+def handle_site_build(
+    args: argparse.Namespace, main_parser: argparse.ArgumentParser
+) -> None:
+    """Handles building the entire site from a directory.
 
-    # Set args.output for render functions
-    args.output = args.output_file
-
-    # Smart Update Logic: If input_file is missing, try to read metadata from output_file
-    creation_date = None
-    creation_time = None
-
-    if not args.input_file:
-        try:
-            # Read the last 1024 bytes to find the metadata comment
-            file_size = output_path.stat().st_size
-            with output_path.open('r', encoding='utf-8') as f:
-                seek_pos = max(0, file_size - 1024)
-                f.seek(seek_pos)
-                tail = f.read()
-                
-                # Look for <!-- slate: {...} -->
-                match = re.search(r'<!-- slate: ({.*}) -->', tail)
-                if match:
-                    metadata = json.loads(match.group(1))
-                    args.input_file = metadata.get("source")
-                    creation_date = metadata.get("creation_date")
-                    creation_time = metadata.get("creation_time")
-                    # Only override template if not provided in args
-                    if not args.template:
-                        args.template = metadata.get("template")
-                    print(f"Smart update: Detected source '{args.input_file}' and template '{args.template}'")
-                else:
-                    main_parser.error("Could not find Slate metadata in output file. Please specify input file.")
-        except Exception as e:
-             main_parser.error(f"Failed to read metadata from output file: {e}")
-
-    if not args.input_file:
-        main_parser.error("Input file is required (could not be determined automatically).")
-
-    if not Path(args.input_file).exists():
-        main_parser.error(f"Input file '{args.input_file}' does not exist.")
-
-    md_text = load_markdown(args.input_file)
-    frontmatter, content = extract_frontmatter(md_text)
-    
-    # Validate frontmatter
-    errors = validate_frontmatter(frontmatter, args.input_file)
-    if errors:
-        for error in errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        main_parser.error("Frontmatter validation failed")
-    
-    # Merge frontmatter with CLI args (frontmatter takes precedence)
-    cli_args_dict = {
-        "description": getattr(args, "description", None),
-        "template": args.template,  # May be from smart update or CLI
-    }
-    merged = merge_with_cli_args(frontmatter, cli_args_dict)
-    
-    # Update args with merged values  
-    if merged.get("description"):
-        args.description = merged["description"]
-    if merged.get("template"):
-        args.template = merged["template"]
-    
-    # Parse content (without frontmatter)
-    blocks = parse_markdown_to_dicts(content)
-    
-    # Title from frontmatter or extracted from blocks
-    title = frontmatter.get("title") or get_title(blocks)
-
-    now = datetime.now()
-    modify_date = now.strftime("%d/%m/%Y")
-    modify_time = now.strftime("%H:%M")
-    
-    # Use creation date from metadata if available, otherwise use now (fallback)
-    if not creation_date:
-        creation_date = modify_date
-    if not creation_time:
-        creation_time = modify_time
-
-    try:
-        version = f"v{importlib.metadata.version('slate-md')}"
-    except importlib.metadata.PackageNotFoundError:
-        version = "v0.0.0"
-
-    # Determine format from output filename extension
-    ext = output_path.suffix.lower()
-
-    # Let's write the logic to dispatch based on extension
-    if ext in ('.html', '.htm'):
-        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
-    elif ext == '.gmi':
-        render_gemtext(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
-    elif ext == '.txt': # Gopher often uses .txt or no extension, but let's assume .txt or .gopher
-        render_gopher(blocks, args, creation_date, creation_time, title, main_parser, version, modify_date=modify_date, modify_time=modify_time)
-    else:
-        print(f"Unknown output file extension '{ext}', defaulting to HTML.")
-        render_html(blocks, args, creation_date, creation_time, title, main_parser, version, source_path=args.input_file, modify_date=modify_date, modify_time=modify_time)
-
-
-
-def handle_site_build(args, main_parser):
-    """Handles the `build` subcommand (formerly `rebuild`).
-    
-    Discovers site structure from source directory and rebuilds all pages
-    with auto-generated navigation.
+    This function discovers the site structure, validates it, and then iterates
+    through all pages to build them in the requested format(s).
     """
     from slate.site import discover_site, validate_site_structure
-    
-    source_dir = Path(args.source).resolve()
-    output_dir = Path(args.output).resolve() if args.output else source_dir
-    templates_dir = Path(args.templates).resolve() if args.templates else None
+
+    # 1. Resolve Paths with Defaults
+    project_root = Path(args.target).resolve()
+
+    # Determine source directory (content/ or root)
+    if (project_root / "content").is_dir():
+        source_dir = project_root / "content"
+    else:
+        source_dir = project_root
+
+    # Determine output directory
+    if getattr(args, "output", None):
+        output_dir = Path(args.output).resolve()
+    else:
+        output_dir = project_root
+
+    # Determine templates directory
+    if args.templates:
+        templates_dir = Path(args.templates).resolve()
+    elif (project_root / "templates").is_dir():
+        templates_dir = (project_root / "templates").resolve()
+    else:
+        templates_dir = None
+
     structure = args.structure
-    
-    print(f"Discovering site structure in {source_dir}...")
-    print(f"Output directory: {output_dir}")
+
+    console.print(f"[info]Source:[/info] [path]{source_dir}[/path]")
+    console.print(f"[info]Output:[/info] [path]{output_dir}[/path]")
     if templates_dir:
-        print(f"Templates directory: {templates_dir}")
-    print(f"Structure: {structure}")
-    
-    # Nuclear option: Clean output directory if requested
-    if getattr(args, 'clean', False):
-        print("Cleaning output directory...")
-        
-        # SAFETY CHECK 1: Do not clean if output is source
-        if output_dir == source_dir:
-            print("WARNING: Output directory is same as source. Skipping clean to avoid deleting source files.")
-            
-        # SAFETY CHECK 2: Do not clean if output is current working directory
-        elif output_dir.resolve() == Path.cwd().resolve():
-            print("ERROR: Cannot use --clean when output directory is the current working directory ('.').")
-            print("       This would delete your entire project!")
-            print("       Please specify a subdirectory for output (e.g. 'slate build -o dist --clean').")
-            sys.exit(1)
-            
-        # SAFETY CHECK 3: Do not clean if output contains critical project files
-        elif (output_dir / ".git").exists() or (output_dir / "pyproject.toml").exists() or (output_dir / "src").exists():
-            print(f"ERROR: Output directory '{output_dir}' appears to be a project root (contains .git, pyproject.toml, or src).")
-            print("       Refusing to clean to prevent data loss.")
-            sys.exit(1)
-            
-        else:
-            # Safe to clean? Let's backup instead of delete to be sure.
-            import datetime
-            import shutil
-            
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_dir = output_dir.parent / f"{output_dir.name}_backup_{timestamp}"
-            
-            if output_dir.exists() and any(output_dir.iterdir()):
-                print(f"Moving existing output to backup: {backup_dir}")
-                try:
-                    output_dir.rename(backup_dir)
-                    output_dir.mkdir()
-                except OSError as e:
-                    print(f"Warning: Failed to move output directory: {e}")
-                    print("Attempting to delete contents instead (fallback)...")
-                    # Only delete if we are SURE it's not root (checks above passed)
-                    for item in output_dir.iterdir():
-                        if item.is_file():
-                            item.unlink()
-                        elif item.is_dir():
-                            shutil.rmtree(item)
-            elif not output_dir.exists():
-                output_dir.mkdir(parents=True)
-                
-            print("Output directory cleaned (backed up/recreated).")
-    
+        console.print(f"[info]Templates:[/info] [path]{templates_dir}[/path]")
+
+    # 2. Safe Clean with Backup
+    if getattr(args, "clean", False):
+        _clean_output_directory(output_dir, args.dry_run)
+
+    # Discover and Validate Site
     try:
         site = discover_site(source_dir, output_dir, structure)
     except (FileNotFoundError, ValueError) as e:
-        main_parser.error(str(e))
-    
-    # Validate structure
+        console.print(f"[error]{e}[/error]")
+        sys.exit(1)
+
     warnings = validate_site_structure(site)
     if warnings:
         for warning in warnings:
-            print(f"WARNING: {warning}", file=sys.stderr)
-    
-    print(f"Found {len(site.categories)} categories")
-    
-    # Get version
+            console.print(f"[warning]{warning}[/warning]")
+
+    console.print(f"Found [highlight]{len(site.categories)}[/highlight] categories")
+
     try:
         version = f"v{importlib.metadata.version('slate-md')}"
     except importlib.metadata.PackageNotFoundError:
         version = "v0.0.0"
-    
-    # Rebuild index page
-    print("\nBuilding index.html...")
-    _rebuild_page(site.index_page, site, None, version, main_parser, templates_dir)
-    
-    # Rebuild each category
+
+    # Collect all pages to build
+    all_pages: list[tuple[Any, str | None]] = []
+    # Index
+    all_pages.append((site.index_page, None))  # (Page, CategoryName)
+    # Categories
     for cat_name, category in site.categories.items():
-        print(f"\nCategory: {cat_name}")
-        
-        # Rebuild category root page
-        print(f"  Building {category.root_page.output_path.name}...")
-        _rebuild_page(category.root_page, site, cat_name, version, main_parser, templates_dir)
-        
-        # Rebuild all pages in category
+        all_pages.append((category.root_page, cat_name))
         for page in category.pages:
-            # Show relative path from output root for clarity
-            try:
-                rel_output = page.output_path.relative_to(output_dir)
-            except ValueError:
-                rel_output = page.output_path
-            print(f"  Building {rel_output}...")
-            _rebuild_page(page, site, cat_name, version, main_parser, templates_dir)
-        
-        # Generate RSS feed if category has blog posts
+            all_pages.append((page, cat_name))
+
+    total_pages = len(all_pages)
+
+    # 3. Build Loop with Progress Bar
+    formats = getattr(args, "formats_list", ["html"])
+
+    for fmt in formats:
+        fmt_dir_name = "gemini" if fmt in ("gemini", "gemtext") else fmt
+
+        # Determine output root for this format
+        # If multiple formats, enforce subdirectories: output_dir / fmt
+        if len(formats) > 1:
+            current_output_dir = output_dir / fmt_dir_name
+        else:
+            current_output_dir = output_dir
+
+        console.print(f"[bold]Building {fmt.upper()} to {current_output_dir}...[/bold]")
+        current_output_dir.mkdir(parents=True, exist_ok=True)
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task(f"[cyan]Building {fmt} site...", total=total_pages)
+
+            for page, category_name in all_pages:
+                if args.dry_run:
+                    console.print(
+                        f"[info]Would build [bold]{page.title}[/bold] ({fmt})...[/info]"
+                    )
+                    progress.advance(task)
+                else:
+                    progress.update(
+                        task,
+                        description=f"Building [bold]{page.title}[/bold] ({fmt})...",
+                    )
+                    _rebuild_page(
+                        page,
+                        site,
+                        category_name,
+                        version,
+                        main_parser,
+                        templates_dir,
+                        fmt=fmt,
+                        output_root=current_output_dir,
+                        project_root=output_dir,
+                    )
+                    progress.advance(task)
+
+            # Generate RSS Feeds (currently HTML only)
+            if fmt == "html":
+                _generate_rss_feeds(
+                    site, current_output_dir, structure, args.dry_run, progress, task
+                )
+
+    console.print(
+        f"\n[success]✓ Site build complete![/success] Built [highlight]{total_pages}[/highlight] pages across {len(formats)} formats."
+    )
+
+
+def _clean_output_directory(output_dir: Path, dry_run: bool) -> None:
+    """Safely cleans the output directory by backing up files before deletion."""
+    if dry_run:
+        console.print("[highlight][DRY RUN] Cleaning output directory...[/highlight]")
+    else:
+        console.print("[highlight]Cleaning output directory...[/highlight]")
+
+    # Identify files to clean: index.html in root, and everything in pages/
+    files_to_clean = []
+
+    # Root index.html
+    root_index = output_dir / "index.html"
+    if root_index.exists() and root_index.is_file():
+        files_to_clean.append(root_index)
+
+    # Pages directory
+    pages_dir = output_dir / "pages"
+    if pages_dir.exists() and pages_dir.is_dir():
+        for p in pages_dir.rglob("*"):
+            if p.is_file():
+                files_to_clean.append(p)
+
+    if files_to_clean:
+        if dry_run:
+            console.print(
+                f"[info]Would backup and delete {len(files_to_clean)} files:[/info]"
+            )
+            for f in files_to_clean:
+                console.print(f"  - {f.relative_to(output_dir)}")
+        else:
+            # Create backup
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_dir = output_dir / "backups" / timestamp
+            backup_dir.mkdir(parents=True, exist_ok=True)
+
+            console.print(
+                f"Backing up {len(files_to_clean)} files to [path]{backup_dir}[/path]..."
+            )
+
+            for file_path in files_to_clean:
+                # Calculate relative path to preserve structure in backup
+                try:
+                    rel_path = file_path.relative_to(output_dir)
+                except ValueError:
+                    rel_path = Path(file_path.name)
+
+                backup_dest = backup_dir / rel_path
+                backup_dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file_path, backup_dest)
+
+                # Delete original
+                file_path.unlink()
+
+            # Clean up empty directories in pages/
+            if pages_dir.exists():
+                # Walk bottom-up to remove empty dirs
+                for p in sorted(
+                    pages_dir.rglob("*"), key=lambda x: len(x.parts), reverse=True
+                ):
+                    if p.is_dir() and not any(p.iterdir()):
+                        p.rmdir()
+                # Remove pages/ itself if empty
+                if not any(pages_dir.iterdir()):
+                    pages_dir.rmdir()
+
+            console.print(
+                f"[success]Clean complete.[/success] Removed {len(files_to_clean)} files."
+            )
+    else:
+        console.print("[info]Nothing to clean.[/info]")
+
+
+def _generate_rss_feeds(
+    site: "Site",
+    output_dir: Path,
+    structure: str,
+    dry_run: bool,
+    progress: Progress,
+    task: Any,
+) -> None:
+    """Generates RSS feeds for categories with blog posts."""
+    for cat_name, category in site.categories.items():
         if category.blog_posts:
-            from slate.rss import generate_rss_feed
-            
-            # Get site info from frontmatter or use defaults
-            site_url = site.index_page.frontmatter.get("url", "https://example.com")
-            site_title = site.index_page.title
-            site_desc = site.index_page.frontmatter.get("description", "")
-            
-            feed_xml = generate_rss_feed(category, site_url, site_title, site_desc)
-            
-            # Write feed.xml to category directory
-            # Tree: pages/category/feed.xml
-            # Flat: category/feed.xml
-            if structure == "tree":
-                feed_path = output_dir / "pages" / cat_name / "feed.xml"
+            if dry_run:
+                console.print(
+                    f"[info]Would generate RSS for [bold]{cat_name}[/bold]...[/info]"
+                )
             else:
-                feed_path = output_dir / cat_name / "feed.xml"
-                
-            feed_path.parent.mkdir(parents=True, exist_ok=True)
-            feed_path.write_text(feed_xml, encoding="utf-8")
-            
-            print(f"  Generated feed.xml ({len(category.blog_posts)} posts)")
-    
-    print(f"\n✓ Site rebuild complete! Built {1 + len([p for cat in site.categories.values() for p in [cat.root_page] + cat.pages])} pages.")
+                progress.update(
+                    task,
+                    description=f"Generating RSS for [bold]{cat_name}[/bold]...",
+                )
+                from slate.rss import generate_rss_feed
+
+                site_url = site.index_page.frontmatter.get("url", "https://example.com")
+                site_title = site.index_page.title
+                site_desc = site.index_page.frontmatter.get("description", "")
+
+                feed_xml = generate_rss_feed(category, site_url, site_title, site_desc)
+
+                if structure == "tree":
+                    feed_path = output_dir / "pages" / cat_name / "feed.xml"
+                else:
+                    feed_path = output_dir / cat_name / "feed.xml"
+
+                feed_path.parent.mkdir(parents=True, exist_ok=True)
+                feed_path.write_text(feed_xml, encoding="utf-8")
 
 
 def _rebuild_page(
@@ -463,230 +607,412 @@ def _rebuild_page(
     category_name: str | None,
     version: str,
     main_parser: argparse.ArgumentParser,
-    templates_dir: Path | None = None
+    templates_dir: Path | None = None,
+    fmt: str = "html",
+    output_root: Path | None = None,
+    project_root: Path | None = None,
 ) -> None:
-    """Helper to rebuild a single page.
-    
+    """Helper to rebuild a single page within a site build.
+
     Args:
-        page: Page object to rebuild
-        site: Site object for navigation context
-        category_name: Category name (or None for index)
-        version: Slate version string
-        main_parser: Parser for error reporting
-        templates_dir: Optional directory to look for templates in
+        page: The Page object to rebuild.
+        site: The Site object.
+        category_name: The category name (if any).
+        version: Slate version string.
+        main_parser: Argument parser.
+        templates_dir: Path to templates directory.
+        fmt: Output format.
+        output_root: Root directory for output (for multi-format builds).
+        project_root: Original project root (for calculating relative paths).
     """
-    from types import SimpleNamespace
-    
-    # Parse frontmatter and content (already done during discovery, but stored in page)
-    md_text = page.source_path.read_text(encoding='utf-8')
-    from slate.frontmatter import extract_frontmatter
+    md_text = page.source_path.read_text(encoding="utf-8")
+
     frontmatter, content = extract_frontmatter(md_text)
-    
-    # Parse blocks
+    content, footnotes = parse_footnotes(content)
+
     blocks = parse_markdown_to_dicts(content)
-    
-    # Get title
     title = page.title
-    
-    # Build navigation context
     nav_context = build_navigation_context(site, category_name, page)
-    
-    # Get timestamps
+
     now = datetime.now()
     modify_date = now.strftime("%d/%m/%Y")
     modify_time = now.strftime("%H:%M")
-    
-    # Use creation dates from frontmatter or current time
-    creation_date = str(frontmatter.get("date", modify_date)) if "date" in frontmatter else modify_date
+
+    creation_date = (
+        str(frontmatter.get("date", modify_date))
+        if "date" in frontmatter
+        else modify_date
+    )
     creation_time = modify_time
-    
-    # Get template from frontmatter or error
+
+    # Determine output path based on output_root and format
+    if output_root:
+        # Calculate relative path from project root to preserve structure
+        rel_path = Path(page.output_path.name)  # Fallback
+
+        if project_root:
+            try:
+                rel_path = page.output_path.relative_to(project_root)
+            except ValueError:
+                rel_path = Path(page.output_path.name)
+
+        # Change extension based on format
+        suffix = (
+            ".html"
+            if fmt == "html"
+            else ".gmi"
+            if fmt in ("gemini", "gemtext")
+            else ".txt"
+        )
+        rel_path = rel_path.with_suffix(suffix)
+
+        final_output_path = output_root / rel_path
+    else:
+        # Single format legacy: use page's pre-calculated output path
+        final_output_path = page.output_path
+
     template_path_str = frontmatter.get("template")
-    if not template_path_str:
-        print(f"  WARNING: No template specified for {page.source_path}, skipping HTML output")
+    if fmt == "html" and not template_path_str:
         return
-    
-    # Resolve template path
-    template_path = Path(template_path_str)
-    if templates_dir and not template_path.is_absolute():
-        # Try finding it in templates_dir
-        potential_path = templates_dir / template_path
-        if potential_path.exists():
-            template_path = potential_path
-    
-    # Build args-like object for render functions
+
+    # Create a lightweight args object for the renderers
     args = SimpleNamespace(
-        template=str(template_path),
+        template=str(template_path_str) if template_path_str else None,
         description=frontmatter.get("description", ""),
-        output=str(page.output_path)
+        output=str(final_output_path),
     )
-    
-    # Render HTML (only format supported for rebuild currently)
-    html_renderer = HTMLRenderer()
-    
-    # Generate TOC
-    toc_html = generate_toc(blocks)
-    
-    # Build context with navigation
-    context = {
-        "title": title,
-        "description": args.description,
-        "creation_date": creation_date,
-        "creation_time": creation_time,
-        "modify_date": modify_date,
-        "modify_time": modify_time,
-        "version": version,
-        "toc": toc_html,
-        **nav_context
-    }
-    
-    # Render content
-    content_html = html_renderer.render_blocks(
-        blocks,
-        title=title,
-        description=args.description,
-        creation_date=creation_date,
-        creation_time=creation_time,
-        modify_date=modify_date,
-        modify_time=modify_time,
-        version=version,
-        site=site,
-        page=page,
-        toc=toc_html
-    )
-    
-    # Apply navigation variables to content
-    for var_name, var_value in nav_context.items():
-        content_html = content_html.replace(f"{{{{{var_name}}}}}", var_value)
-    
-    # Load and render template
-    try:
-        template = load_template(args.template)
-        final_html = template.render(content=content_html, **context)
-    except FileNotFoundError:
-        print(f"  ERROR: Template not found: {args.template}")
-        return
-    
-    # Add metadata comment at end
-    metadata = {
-        "source": str(page.source_path.resolve()),
-        "template": str(Path(args.template).resolve()),
-        "creation_date": creation_date,
-        "creation_time": creation_time
-    }
-    metadata_comment = f"<!-- slate: {json.dumps(metadata)} -->"
-    final_html = final_html.rstrip() + "\n" + metadata_comment + "\n"
-    
-    # Write output
-    page.output_path.parent.mkdir(parents=True, exist_ok=True)
-    save_text(final_html, str(page.output_path))
+
+    if fmt == "html":
+        # HTML Rendering
+        template_path = Path(args.template)
+        if templates_dir and not template_path.is_absolute():
+            potential_path = templates_dir / template_path
+            if potential_path.exists():
+                template_path = potential_path
+        args.template = str(template_path)
+
+        html_renderer = HTMLRenderer()
+        toc_html = generate_toc(blocks)
+
+        context = {
+            "title": title,
+            "description": args.description,
+            "creation_date": creation_date,
+            "creation_time": creation_time,
+            "modify_date": modify_date,
+            "modify_time": modify_time,
+            "version": version,
+            "toc": Markup(toc_html),  # nosec B704
+            **nav_context,
+        }
+
+        content_html = html_renderer.render_blocks(
+            blocks,
+            title=title,
+            description=args.description,
+            creation_date=creation_date,
+            creation_time=creation_time,
+            modify_date=modify_date,
+            modify_time=modify_time,
+            version=version,
+            site=site,
+            page=page,
+            toc=toc_html,
+            footnotes=footnotes,
+        )
+
+        # Replace navigation variables in content
+        for var_name, var_value in nav_context.items():
+            content_html = content_html.replace(f"{{{{{var_name}}}}}", var_value)
+
+        try:
+            template = load_template(args.template)
+            final_html = template.render(content=Markup(content_html), **context)  # nosec B704
+        except FileNotFoundError:
+            console.print(f"[error]Template not found: {args.template}[/error]")
+            return
+
+        # Append metadata comment
+        metadata = {
+            "source": str(page.source_path.resolve()),
+            "template": str(Path(args.template).resolve()),
+            "creation_date": creation_date,
+            "creation_time": creation_time,
+        }
+        metadata_comment = f"<!-- slate: {json.dumps(metadata)} -->"
+        final_html = final_html.rstrip() + "\n" + metadata_comment + "\n"
+
+        final_output_path.parent.mkdir(parents=True, exist_ok=True)
+        save_text(final_html, str(final_output_path))
+
+    elif fmt in ("gemini", "gemtext"):
+        render_gemtext(
+            blocks,
+            args,
+            creation_date,
+            creation_time,
+            title,
+            main_parser,
+            version,
+            modify_date=modify_date,
+            modify_time=modify_time,
+            footnotes=footnotes,
+            site=site,
+            page=page,
+        )
+    elif fmt == "gopher":
+        render_gopher(
+            blocks,
+            args,
+            creation_date,
+            creation_time,
+            title,
+            main_parser,
+            version,
+            modify_time=modify_time,
+            footnotes=footnotes,
+            site=site,
+            page=page,
+        )
 
 
-def handle_rerun_last(args, main_parser):
+def handle_unified_build(
+    args: argparse.Namespace, main_parser: argparse.ArgumentParser
+) -> None:
+    """Handles the unified `build` command (site or page).
+
+    Dispatches to `handle_site_build` or `handle_page_build` based on the target.
+    """
+    target = Path(args.target).resolve()
+
+    # Determine formats
+    formats = []
+    if args.formats:
+        formats = [f.strip().lower() for f in args.formats.split(",") if f.strip()]
+    elif args.format:
+        formats = [args.format.lower()]
+    else:
+        formats = ["html"]
+
+    # Validate formats
+    valid_formats = {"html", "gemini", "gopher", "gemtext"}
+    for f in formats:
+        if f not in valid_formats:
+            console.print(f"[error]Unsupported format: {f}[/error]")
+            sys.exit(1)
+
+    # Store processed formats back in args for downstream use
+    args.formats_list = formats
+
+    if target.is_dir():
+        # Site Build
+        handle_site_build(args, main_parser)
+    elif target.is_file():
+        # Page Build
+        args.input = str(target)
+        base_output = args.output
+
+        for fmt in formats:
+            # Set the current format for this iteration
+            args.format = fmt
+
+            # Determine output path for this format
+            if len(formats) > 1:
+                # Enforce monorepo structure: output_dir/format/filename
+                output_root = Path(base_output) if base_output else target.parent
+                fmt_dir_name = "gemini" if fmt in ("gemini", "gemtext") else fmt
+
+                # Create format-specific subdirectory
+                current_output_dir = output_root / fmt_dir_name
+                current_output_dir.mkdir(parents=True, exist_ok=True)
+
+                # Calculate filename
+                suffix = (
+                    ".html"
+                    if fmt == "html"
+                    else ".gmi"
+                    if fmt in ("gemini", "gemtext")
+                    else ".txt"
+                )
+
+                # If target is a file, use its stem
+                filename = target.with_suffix(suffix).name
+                args.output = str(current_output_dir / filename)
+
+            else:
+                if not base_output:
+                    suffix = (
+                        ".html"
+                        if fmt == "html"
+                        else ".gmi"
+                        if fmt in ("gemini", "gemtext")
+                        else ".txt"
+                    )
+                    args.output = str(target.with_suffix(suffix))
+                else:
+                    args.output = base_output
+
+            handle_page_build(args, main_parser)
+
+    else:
+        console.print(f"[error]Target '{target}' not found.[/error]")
+        sys.exit(1)
+
+
+def handle_rerun_last(
+    args: argparse.Namespace, main_parser: argparse.ArgumentParser
+) -> None:
     """Handles the `rebuild` subcommand (re-run last)."""
-    last_run_file = Path(".slate_last_run")
+    last_run_file = Path("slate.json")
     if not last_run_file.exists():
-        main_parser.error("No previous run found. Run 'slate build' or 'slate page' first.")
-    
+        console.print(
+            "[error]No previous run found. Run 'slate build' or 'slate draft' first.[/error]"
+        )
+        sys.exit(1)
+
     try:
         saved_args = json.loads(last_run_file.read_text())
         cmd_args = saved_args.get("args", [])
-        print(f"Re-running: slate {' '.join(cmd_args)}")
-        
-        # We need to re-parse these arguments
-        # But we can't just call main() because of recursion/exit issues.
-        # Instead, we can parse them with a new parser or re-invoke the current one?
-        # Re-invoking via sys.argv is hacky.
-        # Let's just re-parse using the main_parser we have? 
-        # But main_parser expects 'command' as first arg.
-        
-        # Actually, the cleanest way is to just call main() with the new args?
-        # But main() creates a new parser.
-        # Let's refactor main to accept args list.
-        
-        # Or, we can just use subprocess? No, that's heavy.
-        
-        # Let's just re-parse.
-        # We need to strip the program name if present? No, parse_args takes a list.
-        # saved_args["args"] should be the list of arguments (e.g. ['build', '-s', '.'])
-        
-        # We need to handle the case where the user runs `slate rebuild`.
-        # We don't want to save `rebuild` as the last run.
-        
+        console.print(f"[info]Re-running:[/info] slate {' '.join(cmd_args)}")
+
+        # Prevent infinite recursion if slate.json contains 'rebuild'
+        if cmd_args and cmd_args[0] == "rebuild":
+            console.print("[error]Cannot rebuild a rebuild command.[/error]")
+            sys.exit(1)
+
         new_args = main_parser.parse_args(cmd_args)
-        if hasattr(new_args, 'func'):
+        if hasattr(new_args, "func"):
             new_args.func(new_args, main_parser)
-            
+
     except Exception as e:
-        main_parser.error(f"Failed to re-run last command: {e}")
+        console.print(f"[error]Failed to re-run last command: {e}[/error]")
+        sys.exit(1)
 
 
-def main(args_list=None):
-    """Main entry point for the Slate command-line interface.
+def handle_draft(
+    args: argparse.Namespace, main_parser: argparse.ArgumentParser
+) -> None:
+    """Handles the `draft` subcommand."""
+    from slate.scaffold import create_scaffold
 
-    This function sets up the argument parser, processes command-line arguments,
-    and dispatches to the appropriate handler for the chosen subcommand.
-    """
-    main_parser = argparse.ArgumentParser(description="slate — Markdown to static formats (HTML/Gemini/Gopher)")
-    subparsers = main_parser.add_subparsers(dest="command", required=True, help="Sub-command help")
+    target_path = Path(args.name).resolve()
+    create_scaffold(target_path)
 
-    # Page command (formerly build)
-    parser_page = subparsers.add_parser("page", help="Build a single page from a Markdown source")
-    parser_page.add_argument("input", help="Input markdown file")
-    parser_page.add_argument("output", help="Output path and filename (e.g. pages/post.html)")
-    parser_page.add_argument("-f", "--format", dest="format", choices=("html", "gopher", "gemini"), default="html", help="Output format: html (default), gopher, gemini")
-    parser_page.add_argument("-t", "--title", dest="title", help="Title override (instead of first H1 in the markdown)")
-    parser_page.add_argument("-d", "--description", dest="description", help="Brief description of the page (metadata)")
-    parser_page.add_argument("-T", "--template", dest="template", help="Jinja2 template path (required for HTML output)")
-    parser_page.set_defaults(func=handle_page_build)
 
-    # Update command
-    parser_update = subparsers.add_parser("update", help="Update an existing file from a Markdown source")
-    parser_update.add_argument("output_file", help="Existing file to update")
-    parser_update.add_argument("input_file", nargs='?', help="Input markdown file (optional if metadata exists)")
-    parser_update.add_argument("-T", "--template", dest="template", help="Jinja2 template path (required for HTML output)")
-    parser_update.add_argument("-d", "--description", dest="description", help="Brief description of the page (metadata)")
-    parser_update.set_defaults(func=handle_update) 
-    
-    # Build command (formerly rebuild)
-    parser_build = subparsers.add_parser("build", help="Build entire site from index.md")
-    parser_build.add_argument("-s", "--source", dest="source", default=".", help="Source directory containing Markdown files (default: current dir)")
-    parser_build.add_argument("-o", "--output", dest="output", help="Output directory for HTML files (default: same as source)")
-    parser_build.add_argument("-T", "--templates", dest="templates", help="Directory containing templates")
-    parser_build.add_argument("--structure", dest="structure", choices=("flat", "tree"), default="flat", help="Output structure: flat (mirror source) or tree (professional)")
-    parser_build.add_argument("--clean", action="store_true", help="Clean output directory before building")
-    parser_build.set_defaults(func=handle_site_build)
+def main(args_list: list[str] | None = None) -> None:
+    """Main entry point for the Slate command-line interface."""
+    main_parser = argparse.ArgumentParser(
+        description="slate — Markdown to static formats (HTML/Gemini/Gopher)"
+    )
 
-    # Rebuild command (rerun last)
-    parser_rebuild = subparsers.add_parser("rebuild", help="Re-run the last command with same arguments")
+    # Add version flag
+    main_parser.add_argument(
+        "-v", "--version", action="store_true", help="Show version and exit"
+    )
+
+    subparsers = main_parser.add_subparsers(dest="command", help="Sub-command help")
+
+    # Draft command
+    parser_draft = subparsers.add_parser("draft", help="Create a new Slate project")
+    parser_draft.add_argument("name", help="Name of the new site (directory)")
+    parser_draft.set_defaults(func=handle_draft)
+
+    # Build command (Unified)
+    parser_build = subparsers.add_parser("build", help="Build site or single page")
+    parser_build.add_argument(
+        "target",
+        nargs="?",
+        default=".",
+        help="Target directory (site) or file (page) to build",
+    )
+    parser_build.add_argument(
+        "-o", "--output", dest="output", help="Output directory or file"
+    )
+    parser_build.add_argument(
+        "-T",
+        "--templates",  # For site
+        dest="templates",
+        help="Templates directory (default: templates/)",
+    )
+    parser_build.add_argument(
+        "--template",  # For page
+        dest="template",
+        help="Jinja2 template path (for single page)",
+    )
+    parser_build.add_argument(
+        "--structure",
+        dest="structure",
+        choices=("flat", "tree"),
+        default="tree",
+        help="Output structure (default: tree)",
+    )
+    parser_build.add_argument(
+        "--clean",
+        action="store_true",
+        help="Safely clean output directory before building",
+    )
+    parser_build.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simulate actions without making changes",
+    )
+    parser_build.add_argument(
+        "-f",
+        "--format",
+        dest="format",
+        help="Output format (single). Legacy option.",
+    )
+    parser_build.add_argument(
+        "--formats",
+        dest="formats",
+        help="Comma-separated list of output formats (e.g. html,gemini,gopher). Overrides -f.",
+    )
+    parser_build.add_argument(
+        "--ipfs",
+        action="store_true",
+        help="Enable IPFS compatibility (forces relative links).",
+    )
+    # Page specific args (optional)
+    parser_build.add_argument("-t", "--title", dest="title", help="Title override")
+    parser_build.add_argument(
+        "-d", "--description", dest="description", help="Brief description"
+    )
+
+    parser_build.set_defaults(func=handle_unified_build)
+
+    # Rebuild command
+    parser_rebuild = subparsers.add_parser("rebuild", help="Re-run the last command")
     parser_rebuild.set_defaults(func=handle_rerun_last)
-    
-    try:
-        # Parse args
-        args = main_parser.parse_args(args_list)
-        
-        # Save args if not rebuild/update? 
-        # User said: "slate rebuild is a short-hand command to essentially re-run slate-build with the last used flags"
-        # So we should save on 'build' and 'page'. Maybe 'update'?
-        # Let's save on everything except 'rebuild'.
-        if args.command != 'rebuild':
-            try:
-                # We need the raw arguments list to save, not the parsed namespace.
-                # sys.argv[1:] gives us that.
-                # If args_list was passed (e.g. from test), use that.
-                raw_args = args_list if args_list is not None else sys.argv[1:]
-                Path(".slate_last_run").write_text(json.dumps({"args": raw_args}))
-            except Exception as e:
-                print(f"Warning: Failed to save run state: {e}", file=sys.stderr)
 
-        # Normalize args for update command to match build command expectations
-        if args.command == 'update':
-            args.output = args.output_file
-            
-        if hasattr(args, 'func'):
+    try:
+        args = main_parser.parse_args(args_list)
+
+        # Handle Version Flag
+        if args.version:
+            try:
+                v = importlib.metadata.version("slate-md")
+                console.print(f"slate-md [bold cyan]v{v}[/bold cyan]")
+            except importlib.metadata.PackageNotFoundError:
+                console.print("slate-md [bold red]unknown version[/bold red]")
+            sys.exit(0)
+
+        if not args.command:
+            main_parser.print_help()
+            sys.exit(0)
+
+        if args.command != "rebuild":
+            try:
+                raw_args = args_list if args_list is not None else sys.argv[1:]
+                Path("slate.json").write_text(json.dumps({"args": raw_args}, indent=4))
+            except Exception as e:
+                console.print(
+                    f"[warning]Warning: Failed to save run state: {e}[/warning]"
+                )
+
+        if hasattr(args, "func"):
             args.func(args, main_parser)
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        console.print(f"[error]Error: {e}[/error]")
         sys.exit(1)
 
 
