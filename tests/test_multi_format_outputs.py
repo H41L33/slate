@@ -4,7 +4,6 @@ in multiple formats (HTML, Gemini, Gopher) from a single Markdown input.
 It also includes tests for dynamic date and time placeholder replacement.
 """
 
-
 import sys
 from pathlib import Path
 
@@ -85,49 +84,70 @@ print("hi")
 """
     # Write the Markdown content to the input file.
     write_file(md_input_path, markdown_content)
-    
+
     # Minimal Jinja2 template for HTML output.
-    html_template_content = "<html><head><title>{{ title }}</title></head><body>{{ content }}</body></html>"
+    html_template_content = (
+        "<html><head><title>{{ title }}</title></head><body>{{ content }}</body></html>"
+    )
     # Write the HTML template to its file.
     write_file(html_template_path, html_template_content)
 
     # --- Test HTML Output ---
     # Run the CLI tool to generate HTML output.
-    run_main_with_args(["page", str(md_input_path), str(output_html_path), "-T", str(html_template_path), "-f", "html"])
+    run_main_with_args(
+        [
+            "build",
+            str(md_input_path),
+            "-o",
+            str(output_html_path),
+            "--template",
+            str(html_template_path),
+            "-f",
+            "html",
+        ]
+    )
     # Assert that the HTML output file was created.
     assert output_html_path.exists()
     # Read and verify content in the generated HTML.
     generated_html = output_html_path.read_text(encoding="utf-8")
     assert "Sample Title" in generated_html
     assert "A paragraph with" in generated_html
-    assert "<code" in generated_html or "<code>" in generated_html # Check for inline code rendering.
-    assert 'content-ul' in generated_html # Check for list rendering.
-    assert "content-blockquote" in generated_html # Check for blockquote rendering.
+    assert (
+        "<code" in generated_html or "<code>" in generated_html
+    )  # Check for inline code rendering.
+    assert "content-ul" in generated_html  # Check for list rendering.
+    assert "content-blockquote" in generated_html  # Check for blockquote rendering.
 
     # --- Test Gemini Output ---
     # Run the CLI tool to generate Gemini (Gemtext) output.
-    run_main_with_args(["page", str(md_input_path), str(output_gemini_path), "-f", "gemini"])
+    run_main_with_args(
+        ["build", str(md_input_path), "-o", str(output_gemini_path), "-f", "gemini"]
+    )
     # Assert that the Gemini output file was created.
     assert output_gemini_path.exists()
     # Read and verify content in the generated Gemtext.
     generated_gemini = output_gemini_path.read_text(encoding="utf-8")
     assert "# Sample Title" in generated_gemini
     assert "A paragraph with" in generated_gemini
-    assert "* item one" in generated_gemini or "item one" in generated_gemini # Check for list item rendering.
+    assert (
+        "* item one" in generated_gemini or "item one" in generated_gemini
+    )  # Check for list item rendering.
     assert "A quote" in generated_gemini
-    assert "print(\"hi\")" in generated_gemini # Check for code block rendering.
+    assert 'print("hi")' in generated_gemini  # Check for code block rendering.
 
     # --- Test Gopher Output ---
     # Run the CLI tool to generate Gophermap output.
-    run_main_with_args(["page", str(md_input_path), str(output_gopher_path), "-f", "gopher"])
+    run_main_with_args(
+        ["build", str(md_input_path), "-o", str(output_gopher_path), "-f", "gopher"]
+    )
     # Assert that the Gopher output file was created.
     assert output_gopher_path.exists()
     # Read and verify content in the generated Gophermap.
     generated_gopher = output_gopher_path.read_text(encoding="utf-8")
     assert "Sample Title" in generated_gopher
     assert "A paragraph with" in generated_gopher
-    assert "item one" in generated_gopher # Check for list item rendering.
-    assert "print(\"hi\")" in generated_gopher # Check for code block rendering.
+    assert "item one" in generated_gopher  # Check for list item rendering.
+    assert 'print("hi")' in generated_gopher  # Check for code block rendering.
 
 
 def test_date_time_placeholders(tmp_path: Path):
@@ -137,7 +157,7 @@ def test_date_time_placeholders(tmp_path: Path):
     time values into Markdown content for HTML, Gemini, and Gopher outputs.
     """
     import datetime  # Import datetime for generating current date/time strings.
-    
+
     # Define paths for input Markdown, HTML template, and output files.
     markdown_input_path = tmp_path / "dt.md"
     html_template_path = tmp_path / "dt_template.html"
@@ -152,7 +172,7 @@ def test_date_time_placeholders(tmp_path: Path):
 Paragraph with {{creation_time}}.
 """
     write_file(markdown_input_path, markdown_content_with_placeholders)
-    
+
     # HTML template that also uses date and time placeholders.
     html_template_with_placeholders = "<html><head><title>{{ title }}</title></head><body>{{ content }}<p>{{ creation_date }} - {{ creation_time }}</p></body></html>"
     write_file(html_template_path, html_template_with_placeholders)
@@ -164,7 +184,18 @@ Paragraph with {{creation_time}}.
 
     # --- Test HTML Output with Placeholders ---
     # --- Test HTML Output with Placeholders ---
-    run_main_with_args(["page", str(markdown_input_path), str(output_html_path), "-T", str(html_template_path), "-f", "html"])
+    run_main_with_args(
+        [
+            "build",
+            str(markdown_input_path),
+            "-o",
+            str(output_html_path),
+            "--template",
+            str(html_template_path),
+            "-f",
+            "html",
+        ]
+    )
     assert output_html_path.exists()
     generated_html_content = output_html_path.read_text(encoding="utf-8")
     # Verify that both date and time strings are present in the HTML output.
@@ -173,7 +204,16 @@ Paragraph with {{creation_time}}.
 
     # --- Test Gemini Output with Placeholders ---
     # --- Test Gemini Output with Placeholders ---
-    run_main_with_args(["page", str(markdown_input_path), str(output_gemini_path), "-f", "gemini"])
+    run_main_with_args(
+        [
+            "build",
+            str(markdown_input_path),
+            "-o",
+            str(output_gemini_path),
+            "-f",
+            "gemini",
+        ]
+    )
     assert output_gemini_path.exists()
     generated_gemini_content = output_gemini_path.read_text(encoding="utf-8")
     # Verify that date and time strings are correctly rendered in Gemtext headings and paragraphs.
@@ -182,7 +222,16 @@ Paragraph with {{creation_time}}.
 
     # --- Test Gopher Output with Placeholders ---
     # --- Test Gopher Output with Placeholders ---
-    run_main_with_args(["page", str(markdown_input_path), str(output_gopher_path), "-f", "gopher"])
+    run_main_with_args(
+        [
+            "build",
+            str(markdown_input_path),
+            "-o",
+            str(output_gopher_path),
+            "-f",
+            "gopher",
+        ]
+    )
     assert output_gopher_path.exists()
     generated_gopher_content = output_gopher_path.read_text(encoding="utf-8")
     # Verify that date and time strings are correctly rendered in Gophermap informational lines.

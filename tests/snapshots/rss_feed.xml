@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:ns0="http://www.w3.org/2005/Atom" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
+  <channel>
+    <title>My Site - Blog</title>
+    <link>https://example.com/blog</link>
+    <description>My Blog posts from My Site</description>
+    <ns0:link href="https://example.com/blog/feed.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Post 2</title>
+      <link>https://example.com/blog/post-2.html</link>
+      <description>Description 2</description>
+      <pubDate>Tue, 02 Jan 2024 00:00:00 +0000</pubDate>
+      <guid isPermaLink="true">https://example.com/blog/post-2.html</guid>
+    </item>
+    <item>
+      <title>Post 1</title>
+      <link>https://example.com/blog/post-1.html</link>
+      <description>Description 1</description>
+      <pubDate>Mon, 01 Jan 2024 00:00:00 +0000</pubDate>
+      <guid isPermaLink="true">https://example.com/blog/post-1.html</guid>
+    </item>
+  </channel>
+</rss>

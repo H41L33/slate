@@ -1,0 +1,20 @@
+# Heading 1
+
+Paragraph with **bold**, *italic*, and ~~strike~~.
+
+*  Task 1
+
+*  Task 2
+
+> [{'p': 'Blockquote'}]
+
+1. Ordered 1
+
+2. Ordered 2
+
+```
+
+print("Code")
+
+
+```

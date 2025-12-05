@@ -41,5 +41,5 @@ def load_template(template_path: str | Path) -> Template:
         raise FileNotFoundError(f"Template file '{path}' not found.")
 
     # FileSystemLoader needs a string or Path object (Jinja2 supports Path)
-    env = Environment(loader=FileSystemLoader(path.parent))
+    env = Environment(loader=FileSystemLoader(path.parent), autoescape=True)
     return env.get_template(path.name)

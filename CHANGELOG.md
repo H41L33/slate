@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.2.7 - 2025-12-02
+
+### Added
+- **Renderer Feature Parity**: Gemtext and Gopher renderers now support link extraction and extension conversion.
+- **Link Extraction**: Links in paragraphs are extracted and appended as Gemtext links or Gopher menu items.
+- **Extension Conversion**: `.md` links are automatically converted to `.gmi` or `.txt` in output.
+- **GFM Support**: Task Lists and Horizontal Rules support across all formats.
+- **Freezing**: "Golden Master" snapshot tests to prevent regressions.
+- **Security Hardening**: Added `bandit` security auditing, `defusedxml` for safe XML parsing, and enabled Jinja2 autoescape.
+- **Unified CLI:**
+  - Introduced `slate draft` for scaffolding new sites (replaces `new site`).
+  - Unified `slate build` to handle both full sites and single pages (replaces `page`).
+  - Added `slate rebuild` to instantly re-run the last command.
+  - Added support for `format` in frontmatter.
+- **CLI Polish**: Standardized `rich` error messages and added `--dry-run` option to `clean` command.
+
+### Changed
+- **Type Safety**: Enforced stricter `mypy` configuration (`check_untyped_defs = true`, `ignore_missing_imports = false`) and fixed all type errors.
+- **Refactoring**: Simplified `parse.py` by extracting block handlers into single-responsibility functions.
+
 ## v0.2.0 - 2024-12-01
 
 **Major Release:** Site Management System
