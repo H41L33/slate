@@ -1,0 +1,7 @@
+i# Heading 1		localhost	70
+iParagraph with **bold**, *italic*, and ~~strike~~.		localhost	70
+i-  Task 1		localhost	70
+i-  Task 2		localhost	70
+i1. Ordered 1		localhost	70
+i2. Ordered 2		localhost	70
+iprint("Code")		localhost	70
