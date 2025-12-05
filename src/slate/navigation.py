@@ -124,8 +124,8 @@ class NavigationGenerator:
         Returns:
             HTML breadcrumb string
         """
-        # If no category and no current page (or current page is index), return empty
-        if not page_category and (not current_page or current_page == site.index_page):
+        # If no category and no current page, return empty
+        if not page_category and not current_page:
             return ""
 
         import os

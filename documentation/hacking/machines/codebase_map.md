@@ -35,6 +35,7 @@
 - `test_tipping.py`: Tests for tipping feature.
 - `tests/test_toc_scrolling.py`: Tests for TOC scrolling and heading IDs.
 - `tests/test_inline_code_regression.py`: Regression test for inline code spacing.
+- `tests/test_breadcrumbs_index.py`: Tests for breadcrumbs on index page.
 
 ## Root Directory
 
